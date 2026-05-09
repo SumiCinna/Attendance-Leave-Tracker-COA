@@ -402,8 +402,8 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
             <div class="action-row" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:center;">
                 <?php if (!$view_archived): ?>
                     <button type="button" class="btn btn-accent" id="openAddLeaveBtn" style="padding:10px; font-size:16px;">+ Add Leave Manually</button>
-                    <a href="export_leaves.php" class="btn" style="padding:10px; font-size:12px; text-decoration:none;">Export to CSV</a>
-                    <button type="button" class="btn btn-outline" onclick="printTable()" style="padding:10px; font-size:13px; border:1.5px solid var(--navy); color:var(--navy); background:transparent;">Export to PDF</button>
+                    <a href="export_leaves.php" class="btn" style="padding:9px; font-size:14px; text-decoration:none;">Export to CSV</a>
+                    <button type="button" class="btn" onclick="printTable()" style="padding:11px; font-size:14px;">Export to PDF</button>
                     <!-- ✦ Manage Leave Types button -->
                     <button type="button" class="btn btn-outline" id="openLtModalBtn"
                         style="padding:10px; font-size:13px; border:1.5px solid var(--navy); color:var(--navy); background:transparent; display:inline-flex; align-items:center; gap:6px;">
