@@ -243,7 +243,6 @@ unset($query_string['page']);
 $base_qs  = http_build_query($query_string);
 $base_url = "?" . ($base_qs ? $base_qs . "&" : "") . "page=";
 
-// Re-open LT modal after redirect if needed
 $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
 ?>
 <!DOCTYPE html>
@@ -323,7 +322,7 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
         .toast-error   { background: #fff0f0; color: #c43c3c; border: 1px solid #f5c6c6; }
     </style>
 </head>
-<body>
+<body data-reopen-lt="<?php echo $reopen_lt_modal ? '1' : '0'; ?>">
     <header class="site-header">
         <div class="brand">
             <img src="../includes/images.png" alt="COA Logo" class="logo">
@@ -400,17 +399,15 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
         <!-- Main Table -->
         <section class="card">
             <div class="action-row" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:center;">
-                <?php if (!$view_archived): ?>
-                    <button type="button" class="btn btn-accent" id="openAddLeaveBtn" style="padding:10px; font-size:16px;">+ Add Leave Manually</button>
-                    <a href="export_leaves.php" class="btn" style="padding:9px; font-size:14px; text-decoration:none;">Export to CSV</a>
-                    <button type="button" class="btn" onclick="printTable()" style="padding:11px; font-size:14px;">Export to PDF</button>
-                    <!-- ✦ Manage Leave Types button -->
-                    <button type="button" class="btn btn-outline" id="openLtModalBtn"
-                        style="padding:10px; font-size:13px; border:1.5px solid var(--navy); color:var(--navy); background:transparent; display:inline-flex; align-items:center; gap:6px;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                        Manage Leave Types
-                    </button>
-                <?php endif; ?>
+                <button type="button" class="btn btn-accent" id="openAddLeaveBtn" style="padding:10px; font-size:16px;">+ Add Leave Manually</button>
+<a href="export_leaves.php" class="btn" style="padding:9px; font-size:14px; text-decoration:none;">Export to CSV</a>
+<button type="button" class="btn" onclick="printTable()" style="padding:11px; font-size:14px;">Export to PDF</button>
+<button type="button" class="btn btn-outline" id="openLtModalBtn"
+    style="padding:10px; font-size:13px; border:1.5px solid var(--navy); color:var(--navy); background:transparent; display:inline-flex; align-items:center; gap:6px;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+    Manage Leave Types
+</button>
+                
 
                 <div style="margin-left:auto; display:flex; align-items:center; gap:12px;">
                     <span class="archive-view-label <?php echo $view_archived ? 'archived' : 'active'; ?>">
@@ -506,17 +503,19 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
                                                 <?php endforeach; ?>
                                                 <input type="hidden" name="absence_id"   value="<?php echo $row['id']; ?>">
                                                 <input type="hidden" name="new_archived" value="0">
+                                                <input type="hidden" name="toggle_archive" value="1">
                                                 <button type="submit" name="toggle_archive" class="btn btn-recover" title="Restore to active view">
                                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
                                                     Recover
                                                 </button>
                                             </form>
                                         <?php else: ?>
-                                            <form method="POST" style="display:inline;">
+                                            <form method="POST" style="display:inline;" id="archiveForm-<?php echo $row['id']; ?>">
                                                 <input type="hidden" name="absence_id"   value="<?php echo $row['id']; ?>">
                                                 <input type="hidden" name="new_archived" value="1">
-                                                <button type="submit" name="toggle_archive" class="btn btn-archive" title="Archive this record"
-                                                    onclick="return confirm('Archive this leave record? You can recover it later from the Archived view.')">
+                                                <input type="hidden" name="toggle_archive" value="1">
+                                                <button type="button" name="toggle_archive" class="btn btn-archive" title="Archive this record"
+                                                    onclick="openArchiveModal(document.getElementById('archiveForm-<?php echo $row['id']; ?>'))">
                                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
                                                     Archive
                                                 </button>
@@ -544,6 +543,27 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
         </section>
     </main>
 
+    <!-- ══ Archive Confirm Modal ══════════════════════════════════════════════════ -->
+    <div id="archiveConfirmModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); align-items:center; justify-content:center; z-index:1000;">
+        <div class="card" style="width:400px; max-width:90%; animation:rise 0.3s ease-out; text-align:center;">
+            <div style="width:52px; height:52px; border-radius:50%; background:#fff3e0; display:flex; align-items:center; justify-content:center; margin:0 auto 14px;">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#e67e22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>
+                </svg>
+            </div>
+            <h3 style="margin:0 0 8px; color:var(--navy);">Archive this record?</h3>
+            <p style="font-size:14px; color:var(--text-muted, #666); margin:0 0 24px;">
+                This record will be moved to the Archived view. You can recover it at any time.
+            </p>
+            <div style="display:flex; gap:12px; justify-content:center;">
+                <button type="button" class="btn btn-auth-outline" onclick="closeArchiveModal()"
+                    style="min-width:110px; border:1px solid var(--border, #ccc);">Cancel</button>
+                <button type="button" class="btn" onclick="confirmArchive()"
+                    style="min-width:110px; background:#e67e22; box-shadow:0 4px 12px rgba(230,126,34,0.25);">Yes, Archive</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ══ Manage Leave Types Modal ══════════════════════════════════════════════ -->
     <div id="ltModal" class="modal-overlay" style="display:none;">
         <div class="modal-box" style="max-width:520px;">
@@ -557,7 +577,6 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
             </div>
             <p class="modal-sub" style="margin-top:0; margin-bottom:18px;">Active types appear in all leave forms. Disable to hide without losing history.</p>
 
-            <!-- Current chips -->
             <p class="lt-section-label">Current Types</p>
             <div class="lt-grid">
                 <?php foreach ($leave_types as $lt): ?>
@@ -565,7 +584,6 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
                         <?php echo htmlspecialchars($lt['name'], ENT_QUOTES, 'UTF-8'); ?>
                         <span class="lt-chip-actions">
                             <?php if ($lt['is_active']): ?>
-                                <!-- Disable -->
                                 <form method="POST" style="display:inline;">
                                     <input type="hidden" name="lt_id"     value="<?php echo $lt['id']; ?>">
                                     <input type="hidden" name="lt_active" value="0">
@@ -574,7 +592,6 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
                                     </button>
                                 </form>
                             <?php else: ?>
-                                <!-- Re-enable -->
                                 <form method="POST" style="display:inline;">
                                     <input type="hidden" name="lt_id"     value="<?php echo $lt['id']; ?>">
                                     <input type="hidden" name="lt_active" value="1">
@@ -583,7 +600,6 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
                                     </button>
                                 </form>
                             <?php endif; ?>
-                            <!-- Delete (opens confirm modal) -->
                             <button type="button" class="lt-chip-btn del" title="Delete"
                                 onclick="openLtDeleteModal(<?php echo $lt['id']; ?>, '<?php echo htmlspecialchars(addslashes($lt['name']), ENT_QUOTES, 'UTF-8'); ?>')">
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
@@ -595,7 +611,6 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
 
             <hr class="lt-divider">
 
-            <!-- Add new type -->
             <p class="lt-section-label">Add New Type</p>
             <form method="POST" class="lt-add-row" onsubmit="return validateNewLeaveType()">
                 <div style="flex:1; min-width:180px; display:flex; flex-direction:column;">
@@ -638,7 +653,7 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
         </div>
     </div>
 
-    <!-- Add Leave Modal -->
+    <!-- ══ Add Leave Modal ════════════════════════════════════════════════════════ -->
     <div id="addLeaveModal" class="modal-overlay">
         <div class="modal-box">
             <h3>Add Leave Manually</h3>
@@ -728,7 +743,7 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
         </div>
     </div>
 
-    <!-- Reject Modal -->
+    <!-- ══ Reject Modal ═══════════════════════════════════════════════════════════ -->
     <div id="rejectModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;">
         <div class="card" style="width:400px; max-width:90%; animation:rise 0.3s ease-out;">
             <h3 style="margin-bottom:16px; color:var(--navy);">Reject Leave Request</h3>
@@ -747,7 +762,7 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
         </div>
     </div>
 
-    <!-- Approve Modal -->
+    <!-- ══ Approve Modal ══════════════════════════════════════════════════════════ -->
     <div id="approveModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;">
         <div class="card" style="width:400px; max-width:90%; animation:rise 0.3s ease-out;">
             <h3 style="margin-bottom:16px; color:var(--navy);">Approve Leave Request</h3>
@@ -765,7 +780,7 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
         </div>
     </div>
 
-    <!-- Logout Modal -->
+    <!-- ══ Logout Modal ═══════════════════════════════════════════════════════════ -->
     <div id="logoutModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); align-items:center; justify-content:center; z-index:2000;">
         <div class="card" style="width:380px; max-width:90%; animation:rise 0.25s ease-out; text-align:center;">
             <div style="margin-bottom:16px;">
@@ -784,79 +799,6 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
         </div>
     </div>
 
-    <script>
-        // ── Leave Type Modal ──────────────────────────────────────────────────────
-        const ltModal       = document.getElementById('ltModal');
-        const ltDeleteModal = document.getElementById('ltDeleteModal');
-
-        function openLtModal()  { ltModal.style.display = 'flex'; }
-        function closeLtModal() { ltModal.style.display = 'none'; }
-
-        function openLtDeleteModal(id, name) {
-            document.getElementById('ltDeleteId').value   = id;
-            document.getElementById('ltDeleteName').textContent = name;
-            ltDeleteModal.style.display = 'flex';
-        }
-        function closeLtDeleteModal() { ltDeleteModal.style.display = 'none'; }
-
-        // Close on backdrop click
-        [ltModal, ltDeleteModal].forEach(modal => {
-            modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
-        });
-
-        document.getElementById('openLtModalBtn')?.addEventListener('click', openLtModal);
-
-        // Re-open after redirect (add / toggle / failed delete)
-        <?php if ($reopen_lt_modal): ?>
-            document.addEventListener('DOMContentLoaded', openLtModal);
-        <?php endif; ?>
-
-        // ── Leave Type name character counter (50-char limit) ─────────────────────
-        const ltInput = document.getElementById('newLeaveTypeName');
-        const ltCount = document.getElementById('ltCharCount');
-        if (ltInput && ltCount) {
-            ltInput.addEventListener('input', () => {
-                const len = ltInput.value.length;
-                ltCount.textContent = `${len} / 50`;
-                ltCount.classList.remove('near-limit', 'at-limit');
-                if (len >= 50) {
-                    ltCount.classList.add('at-limit');
-                } else if (len >= 40) {
-                    ltCount.classList.add('near-limit');
-                }
-            });
-        }
-
-        // Inline validation for add form
-        function validateNewLeaveType() {
-            const input = document.getElementById('newLeaveTypeName');
-            const err   = document.getElementById('ltAddError');
-            if (!input.value.trim()) {
-                err.textContent     = 'Please enter a leave type name.';
-                err.style.display   = 'block';
-                input.focus();
-                return false;
-            }
-            if (input.value.trim().length > 50) {
-                err.textContent   = 'Leave type name must be 50 characters or less.';
-                err.style.display = 'block';
-                input.focus();
-                return false;
-            }
-            err.style.display = 'none';
-            return true;
-        }
-
-        // Auto-dismiss toasts
-        ['addLeaveToast', 'ltToast'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) setTimeout(() => {
-                el.style.transition = 'opacity 0.5s';
-                el.style.opacity    = '0';
-                setTimeout(() => el.remove(), 500);
-            }, 4000);
-        });
-    </script>
     <script src="../js/admin.js"></script>
 </body>
 </html>
