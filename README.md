@@ -1,7 +1,6 @@
 # COA Attendance Leave/Absents Tracker
 
 ## ✅ Features
-- Register with Gmail only (unique per account)
 - Real-time validation for names and password
 - Login + dashboard for leave submissions
 - Leave history table
@@ -13,10 +12,11 @@
 2. Update database credentials inside `php/db.php`.
 3. Open `php/index.php` in your browser using XAMPP.
 
-## � Admin Account
+## � Admin Account - Sir Blaine 
 Default admin user (seeded in `database.sql`):
 - Gmail: `admin@gmail.com`
 - Password: `Admin1234`
+
 
 
 
