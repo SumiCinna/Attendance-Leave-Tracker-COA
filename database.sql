@@ -34,3 +34,21 @@ ALTER TABLE users
     ADD COLUMN contact_number VARCHAR(15) NULL AFTER email;
     
 ALTER TABLE absences ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS leave_types (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO leave_types (name) VALUES
+    ('Sick Leave'),
+    ('Vacation Leave'),
+    ('Emergency Leave'),
+    ('Personal Leave'),
+    ('Bereavement Leave'),
+    ('Maternity/Paternity Leave'),
+    ('Official Business'),
+    ('Unpaid Leave')
+ON DUPLICATE KEY UPDATE name = VALUES(name);
