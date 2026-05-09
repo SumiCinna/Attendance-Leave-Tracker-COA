@@ -1,0 +1,195 @@
+/* css/index.css — index page only styles */
+
+/* ─── HERO CARD ──────────────────────────────── */
+.hero {
+    color: #fff;
+    border-radius: var(--radius);
+    padding: 48px 44px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    position: relative;
+    overflow: hidden;
+    animation: rise 0.4s ease-out both;
+}
+
+/* Blurred COA bg image */
+.hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url('../includes/coa-bg.jpg') center center / cover no-repeat;
+    filter: blur(1px);
+    transform: scale(1.06);
+    z-index: 0;
+    border-radius: inherit;
+}
+
+/* Dark gradient overlay */
+.hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        130deg,
+        rgba(13, 27, 75, 0.88) 0%,
+        rgba(26, 46, 90, 0.80) 55%,
+        rgba(59, 95, 192, 0.72) 100%
+    );
+    z-index: 1;
+    border-radius: inherit;
+}
+
+/* All hero content above bg layers */
+.hero h2,
+.hero p,
+.hero-actions {
+    position: relative;
+    z-index: 2;
+}
+
+.hero h2 {
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.5px;
+}
+
+.hero p {
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 15px;
+    max-width: 560px;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+/* ─── GRID (Leave Types / How it Works) ─────── */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 24px;
+}
+
+.info-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 28px 30px;
+    box-shadow: var(--shadow);
+    border-top: 4px solid var(--primary);
+    transition: transform var(--transition), box-shadow var(--transition);
+    animation: rise 0.4s ease-out both;
+}
+
+.info-card:nth-child(2) { border-top-color: var(--accent); }
+
+.info-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-hover);
+}
+
+.info-card h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.info-card h3::before {
+    content: '';
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--primary);
+    flex-shrink: 0;
+}
+
+.info-card:nth-child(2) h3::before { background: var(--accent); }
+
+.info-card ul,
+.info-card ol {
+    padding-left: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.info-card ul li,
+.info-card ol li {
+    font-size: 14px;
+    color: var(--text);
+    padding: 6px 10px 6px 14px;
+    border-radius: 6px;
+    background: var(--bg);
+    position: relative;
+    transition: background var(--transition);
+}
+
+.info-card ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    border-radius: 4px;
+    background: var(--primary);
+}
+
+.info-card:nth-child(2) ul li::before,
+.info-card:nth-child(2) ol li::before { background: var(--accent); }
+
+.info-card ol { counter-reset: steps; }
+
+.info-card ol li {
+    counter-increment: steps;
+    padding-left: 36px;
+}
+
+.info-card ol li::before {
+    content: counter(steps);
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: auto;
+    height: auto;
+    background: none;
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.info-card ul li:hover,
+.info-card ol li:hover { background: #e8eeff; }
+
+/* Stagger grid children */
+.grid > *:nth-child(1) { animation-delay: 0.05s; }
+.grid > *:nth-child(2) { animation-delay: 0.12s; }
+.grid > *:nth-child(3) { animation-delay: 0.19s; }
+.grid > *:nth-child(4) { animation-delay: 0.26s; }
+
+/* ─── RESPONSIVE ─────────────────────────────── */
+@media (max-width: 768px) {
+    .hero {
+        padding: 32px 24px;
+    }
+
+    .hero h2 {
+        font-size: 22px;
+    }
+
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}

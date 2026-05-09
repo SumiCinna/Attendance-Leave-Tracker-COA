@@ -1,0 +1,117 @@
+/* css/dashboard.css */
+
+/* ─── TABLE ──────────────────────────────────── */
+.table-wrap {
+    overflow-x: auto;
+    border-radius: var(--radius-sm);
+}
+
+.action-row {
+    display: left;
+    gap: 2px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.table-wrap table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table-wrap thead {
+    background: var(--navy);
+}
+
+.table-wrap th {
+    padding: 13px 16px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+}
+
+.table-wrap th:first-child { border-radius: var(--radius-sm) 0 0 0; }
+.table-wrap th:last-child  { border-radius: 0 var(--radius-sm) 0 0; }
+
+.table-wrap td {
+    padding: 12px 16px;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+}
+
+.table-wrap tbody tr {
+    transition: background var(--transition);
+}
+
+.table-wrap tbody tr:hover td {
+    background: #f3f6ff;
+}
+
+.table-wrap tbody tr:last-child td {
+    border-bottom: none;
+}
+
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    .table-wrap,
+    .table-wrap * {
+        visibility: visible;
+    }
+    .table-wrap {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+    }
+    /* Hide the action buttons inside the table (Approve/Reject) */
+    td button,
+    td a {
+        display: none !important;
+    }
+}
+
+/* ── Mobile Responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+
+    /* Table: horizontal scroll on small screens */
+    .table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .table-wrap table {
+        min-width: 540px;
+    }
+
+    .table-wrap th,
+    .table-wrap td {
+        font-size: 11px;
+        padding: 9px 10px;
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    .action-row {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .action-row .btn,
+    .action-row button,
+    .action-row a {
+        width: 100%;
+        text-align: center;
+        font-size: 12px;
+        padding: 9px 12px;
+        box-sizing: border-box;
+    }
+}

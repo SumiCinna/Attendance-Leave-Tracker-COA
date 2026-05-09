@@ -18,11 +18,5 @@ Default admin user (seeded in `database.sql`):
 - Gmail: `admin@gmail.com`
 - Password: `Admin1234`
 
-The admin can view all employee leave requests and export them.
 
-## �🗂️ Pages
-- `php/index.php`
-- `php/register.php`
-- `php/login.php`
-- `php/dashboard.php`
-- `php/admin.php`
+
