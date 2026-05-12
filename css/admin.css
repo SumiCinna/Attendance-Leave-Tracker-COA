@@ -111,8 +111,8 @@
 
 /* ── Layout ────────────────────────────────────────────────────────────────── */
 .container {
-    max-width: 1400px !important;
-    width: 95% !important;
+    max-width: 1600px !important;
+    width: 98% !important;
 }
 
 /* ── Toast Notifications ───────────────────────────────────────────────────── */
@@ -347,7 +347,7 @@
     .action-row {
         flex-direction: column !important;
         align-items: flex-start !important;
-        gap: 10px !important;
+        gap: 15px !important;
     }
 
     .action-row > div:last-child {

@@ -14,7 +14,7 @@
         <div class="brand">
             <img src="../includes/images.png" alt="COA Logo" class="logo">
             <div>
-                <h1>COA Attendance Leave/Absents Tracker</h1>
+                <h1>COA Leave/Absences Tracker</h1>
                 <p class="muted">Commission On Audit - Republic of the Philippines</p>
             </div>
         </div>

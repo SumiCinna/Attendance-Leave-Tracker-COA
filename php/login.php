@@ -41,7 +41,7 @@ $registered = isset($_GET["registered"]);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | Attendance Leave Tracker</title>
+    <title>Login | COA Leave/Absences Tracker</title>
     <link rel="stylesheet" href="../css/styles.css">
 </head>
 <body>
@@ -51,7 +51,7 @@ $registered = isset($_GET["registered"]);
             <div class="auth-info">
                 <img src="../includes/images.png" alt="COA Logo" class="logo" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; margin-bottom: 24px; filter: drop-shadow(0 4px 10px rgba(255,255,255,0.2));">
                 <div class="badge"><span>COA</span> Official System</div>
-                <h2>Attendance &<br>Leave Tracker</h2>
+                <h2>Absences/Leave Tracker</h2>
                 <p class="subtitle">Commission on Audit · Republic of the Philippines</p>
             </div>
 

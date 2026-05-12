@@ -85,6 +85,7 @@ body {
     object-fit: contain;
     filter: drop-shadow(0 4px 10px rgba(39, 94, 254, 0.4));
     animation: float 5s ease-in-out infinite;
+    border-radius: 50%;
 }
 
 .nav-links {

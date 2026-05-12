@@ -3,9 +3,6 @@ require_once __DIR__ . "/db.php";
 require_once __DIR__ . "/auth.php";
 require_admin();
 
-@$mysqli->query("ALTER TABLE absences ADD COLUMN admin_remarks TEXT NULL");
-@$mysqli->query("ALTER TABLE absences ADD COLUMN is_archived TINYINT(1) NOT NULL DEFAULT 0");
-
 // ── Add Leave Type ─────────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_leave_type"])) {
     $type_name = trim($_POST["leave_type_name"] ?? "");
