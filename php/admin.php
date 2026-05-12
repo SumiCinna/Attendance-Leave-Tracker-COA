@@ -29,7 +29,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_leave_type"])) {
     exit;
 }
 
-$selected_year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
+$selected_year = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
+$selected_month = isset($_GET['month']) ? (int)$_GET['month'] : 0;
 
 // ── Toggle Leave Type Active/Inactive ──────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_leave_type"])) {
@@ -113,16 +114,32 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["delete_leave"])) {
 
 // ── Add Leave Manually ─────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_leave_manual"])) {
-    $employee_name = trim($_POST["manual_employee_name"] ?? "");
+    $employee_mode = trim($_POST["employee_mode"] ?? "existing");
+    $existing_employee = trim($_POST["existing_employee"] ?? "");
+    $new_employee_name = trim($_POST["new_employee_name"] ?? "");
+
+    $employee_name = $employee_mode === "new" ? $new_employee_name : $existing_employee;
     $leave_date    = trim($_POST["manual_leave_date"] ?? "");
     $leave_type    = trim($_POST["manual_leave_type"] ?? "");
 
     $add_status = "success";
     $add_msg    = "Leave added successfully.";
 
-    if ($employee_name === "" || $leave_date === "" || $leave_type === "") {
+    if ($employee_mode !== "existing" && $employee_mode !== "new") {
+        $add_status = "error";
+        $add_msg    = "Please select an employee or add a new one.";
+    } elseif ($employee_name === "" || $leave_date === "" || $leave_type === "") {
         $add_status = "error";
         $add_msg    = "Employee name, leave date, and leave type are required.";
+    } elseif (mb_strlen($employee_name) > 255) {
+        $add_status = "error";
+        $add_msg    = "Employee name is too long.";
+    } else {
+        $date_obj = DateTime::createFromFormat('Y-m-d', $leave_date);
+        if (!$date_obj || $date_obj->format('Y-m-d') !== $leave_date) {
+            $add_status = "error";
+            $add_msg    = "Please enter a valid leave date.";
+        }
     }
 
     if ($add_status === "success") {
@@ -157,7 +174,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_leave_manual"])) 
 $view_archived = isset($_GET['archived']) && $_GET['archived'] === '1' ? 1 : 0;
 
 $search_name      = trim($_GET["search_name"] ?? "");
-$search_date      = trim($_GET["search_date"] ?? "");
 $filter_type      = trim($_GET["filter_type"] ?? "");
 
 $where_clauses = [
@@ -175,10 +191,10 @@ if ($search_name !== "") {
     $params[] = $like_name;
     $types   .= "s";
 }
-if ($search_date !== "") {
-    $where_clauses[] = "leave_data.leave_date = ?";
-    $params[] = $search_date;
-    $types   .= "s";
+if ($selected_month > 0 && $selected_month <= 12) {
+    $where_clauses[] = "MONTH(leave_data.leave_date) = ?";
+    $params[] = $selected_month;
+    $types   .= "i";
 }
 if ($filter_type !== "") {
     $where_clauses[] = "leave_data.leave_type = ?";
@@ -189,15 +205,17 @@ if ($filter_type !== "") {
 $where_sql = implode(" AND ", $where_clauses);
 
 // Get summary grouped by employee name
-$summary_query = "SELECT 
-    employee_name,
-    COUNT(id) as leave_count,
-    MAX(leave_date) as last_leave_date,
-    GROUP_CONCAT(DISTINCT leave_type ORDER BY leave_type) as leave_types
-    FROM leave_data
-    WHERE $where_sql
-    GROUP BY employee_name
-    ORDER BY employee_name ASC";
+$summary_query = $view_archived
+    ? "SELECT id, employee_name, leave_date, leave_type FROM leave_data WHERE $where_sql ORDER BY employee_name ASC, leave_date ASC"
+    : "SELECT 
+        employee_name,
+        COUNT(id) as leave_count,
+        MAX(leave_date) as last_leave_date,
+        GROUP_CONCAT(DISTINCT leave_type ORDER BY leave_type) as leave_types
+        FROM leave_data
+        WHERE $where_sql
+        GROUP BY employee_name
+        ORDER BY employee_name ASC";
 
 $summary_stmt = $mysqli->prepare($summary_query);
 $summary_stmt->bind_param($types, ...$params);
@@ -222,14 +240,23 @@ while ($lt = $lt_result->fetch_assoc()) {
 $active_leave_types = array_filter($leave_types, fn($lt) => $lt['is_active']);
 
 $calendar_year = $selected_year;
+$calendar_month = ($selected_month > 0 && $selected_month <= 12) ? $selected_month : 0;
 
 // Get calendar entries
-$calendar_stmt = $mysqli->prepare("SELECT id, employee_name, leave_date, leave_type, is_archived
+$calendar_query = "SELECT id, employee_name, leave_date, leave_type, is_archived
     FROM leave_data
-    WHERE is_archived = ?
-AND YEAR(leave_date) = ?
-    ORDER BY employee_name ASC, leave_date ASC");
-$calendar_stmt->bind_param("ii", $view_archived, $calendar_year);
+    WHERE is_archived = ? AND YEAR(leave_date) = ?";
+$calendar_types = "ii";
+$calendar_params = [$view_archived, $calendar_year];
+if ($calendar_month) {
+    $calendar_query .= " AND MONTH(leave_date) = ?";
+    $calendar_types .= "i";
+    $calendar_params[] = $calendar_month;
+}
+$calendar_query .= " ORDER BY employee_name ASC, leave_date ASC";
+
+$calendar_stmt = $mysqli->prepare($calendar_query);
+$calendar_stmt->bind_param($calendar_types, ...$calendar_params);
 $calendar_stmt->execute();
 $calendar_result = $calendar_stmt->get_result();
 $calendar_entries = [];
@@ -244,7 +271,21 @@ while ($row = $calendar_result->fetch_assoc()) {
 }
 $calendar_stmt->close();
 
+$calendar_employee_names = array_values(array_unique(array_filter(array_map(
+    fn($entry) => $entry['employee_name'] ?? '',
+    $calendar_entries
+))));
+sort($calendar_employee_names, SORT_NATURAL | SORT_FLAG_CASE);
+
 $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
+$export_params = ['year' => $selected_year];
+if ($selected_month > 0 && $selected_month <= 12) {
+    $export_params['month'] = $selected_month;
+}
+if ($view_archived) {
+    $export_params['archived'] = '1';
+}
+$export_query = http_build_query($export_params);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -381,11 +422,22 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
                         value="<?php echo htmlspecialchars($search_name, ENT_QUOTES, "UTF-8"); ?>"
                         placeholder="Search by name..." style="background:#fff; color:#333; border:1px solid var(--border);">
                 </div>
-                <div class="form-group" style="flex:1; min-width:130px;">
-                    <label for="search_date" style="font-size:13px; font-weight:600; color:var(--navy);">Leave Date</label>
-                    <input type="date" name="search_date" id="search_date"
-                        value="<?php echo htmlspecialchars($search_date, ENT_QUOTES, "UTF-8"); ?>"
-                        style="background:#fff; color:#333; border:1px solid var(--border);">
+                <div class="form-group" style="flex:1; min-width:160px;">
+                    <label for="month" style="font-size:13px; font-weight:600; color:var(--navy);">Month</label>
+                    <select name="month" id="month" style="background:#fff; color:#333; border:1px solid var(--border);">
+                        <option value="">All Months</option>
+                        <?php
+                        $month_names = [
+                            1 => 'January', 2 => 'February', 3 => 'March', 4 => 'April', 5 => 'May', 6 => 'June',
+                            7 => 'July', 8 => 'August', 9 => 'September', 10 => 'October', 11 => 'November', 12 => 'December'
+                        ];
+                        foreach ($month_names as $num => $label):
+                        ?>
+                            <option value="<?php echo $num; ?>" <?php echo $selected_month === $num ? 'selected' : ''; ?>>
+                                <?php echo $label; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="form-group" style="flex:1; min-width:180px;">
                     <label for="filter_type" style="font-size:13px; font-weight:600; color:var(--navy);">Leave Type</label>
@@ -412,7 +464,7 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
         <section class="card">
             <div class="action-row" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:center;">
                 <button type="button" class="btn btn-accent" id="openAddLeaveBtn" style="padding:10px; font-size:16px;">+ Add Leave Manually</button>
-                <a href="export_leaves.php" class="btn" style="padding:9px; font-size:14px; text-decoration:none;">Export to CSV</a>
+                <a href="export_leaves.php?<?php echo htmlspecialchars($export_query, ENT_QUOTES, 'UTF-8'); ?>" class="btn" style="padding:9px; font-size:14px; text-decoration:none;">Export to CSV</a>
                 <button type="button" class="btn" onclick="printTable()" style="padding:11px; font-size:14px;">Export to PDF</button>
                 <button type="button" class="btn btn-outline" id="openLtModalBtn"
                     style="padding:10px; font-size:13px; border:1.5px solid var(--navy); color:var(--navy); background:transparent; display:inline-flex; align-items:center; gap:6px;">
@@ -444,32 +496,53 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
                 <table>
                     <thead>
                         <tr>
-                            <th>Employee Name</th>
-                            <th>Leave Count</th>
-                            <th>Last Leave Date</th>
-                            <th>Leave Types</th>
-                            <th>Calendar</th>
+                            <?php if ($view_archived): ?>
+                                <th>Employee Name</th>
+                                <th>Leave Date</th>
+                                <th>Leave Type</th>
+                                <th>Action</th>
+                            <?php else: ?>
+                                <th>Employee Name</th>
+                                <th>Leave Count</th>
+                                <th>Last Leave Date</th>
+                                <th>Leave Types</th>
+                                <th>Calendar</th>
+                            <?php endif; ?>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if ($summary_records->num_rows === 0): ?>
                             <tr>
-                                <td colspan="5" class="muted" style="text-align:center; padding:32px 0;">
+                                <td colspan="<?php echo $view_archived ? 4 : 5; ?>" class="muted" style="text-align:center; padding:32px 0;">
                                     <?php echo $view_archived ? 'No archived leave records.' : 'No leave records yet.'; ?>
                                 </td>
                             </tr>
                         <?php else: ?>
                             <?php while ($row = $summary_records->fetch_assoc()): ?>
                                 <tr>
-                                    <td><?php echo htmlspecialchars($row["employee_name"], ENT_QUOTES, "UTF-8"); ?></td>
-                                    <td><?php echo (int)$row['leave_count']; ?></td>
-                                    <td><?php echo htmlspecialchars($row['last_leave_date'] ?? '—', ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td><?php echo htmlspecialchars($row['leave_types'] ?? '—', ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td>
-                                        <button type="button" class="btn btn-calendar" data-employee-name="<?php echo htmlspecialchars($row['employee_name'], ENT_QUOTES, 'UTF-8'); ?>">
-                                            View Calendar
-                                        </button>
-                                    </td>
+                                    <?php if ($view_archived): ?>
+                                        <td><?php echo htmlspecialchars($row["employee_name"], ENT_QUOTES, "UTF-8"); ?></td>
+                                        <td><?php echo htmlspecialchars($row['leave_date'] ?? '—', ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td><?php echo htmlspecialchars($row['leave_type'] ?? '—', ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td>
+                                            <form method="POST" style="display:inline;">
+                                                <input type="hidden" name="toggle_archive_leave" value="1">
+                                                <input type="hidden" name="leave_id" value="<?php echo (int)$row['id']; ?>">
+                                                <input type="hidden" name="new_archived" value="0">
+                                                <button type="submit" class="btn btn-outline" style="padding:6px 12px;">Restore</button>
+                                            </form>
+                                        </td>
+                                    <?php else: ?>
+                                        <td><?php echo htmlspecialchars($row["employee_name"], ENT_QUOTES, "UTF-8"); ?></td>
+                                        <td><?php echo (int)$row['leave_count']; ?></td>
+                                        <td><?php echo htmlspecialchars($row['last_leave_date'] ?? '—', ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td><?php echo htmlspecialchars($row['leave_types'] ?? '—', ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td>
+                                            <button type="button" class="btn btn-calendar" data-employee-name="<?php echo htmlspecialchars($row['employee_name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                                View Calendar
+                                            </button>
+                                        </td>
+                                    <?php endif; ?>
                                 </tr>
                             <?php endwhile; ?>
                         <?php endif; ?>
@@ -599,15 +672,35 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
             <form method="POST" id="addLeaveForm" novalidate>
                 <input type="hidden" name="add_leave_manual" value="1">
 
-                <div class="form-group">
-                    <label for="manual_employee_name">Employee Name</label>
-                    <input type="text" id="manual_employee_name" name="manual_employee_name" 
-                        list="employees-list" placeholder="e.g. Juan Dela Cruz" required>
-                    <datalist id="employees-list">
+                <div class="form-group" style="margin-bottom:6px;">
+                    <label style="font-weight:600;">Employee Source</label>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                        <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px;">
+                            <input type="radio" name="employee_mode" value="existing" id="employeeModeExisting" checked>
+                            Select existing
+                        </label>
+                        <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px;">
+                            <input type="radio" name="employee_mode" value="new" id="employeeModeNew">
+                            Add new employee
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group" id="employeeSelectDiv">
+                    <label for="existing_employee">Select Employee</label>
+                    <select id="existing_employee" name="existing_employee">
+                        <option value="">— Select employee —</option>
                         <?php foreach ($all_employees as $emp): ?>
                             <option value="<?php echo htmlspecialchars($emp, ENT_QUOTES, 'UTF-8'); ?>">
+                                <?php echo htmlspecialchars($emp, ENT_QUOTES, 'UTF-8'); ?>
+                            </option>
                         <?php endforeach; ?>
-                    </datalist>
+                    </select>
+                </div>
+
+                <div class="form-group" id="employeeManualDiv" style="display:none;">
+                    <label for="new_employee_name">New Employee Name</label>
+                    <input type="text" id="new_employee_name" name="new_employee_name" placeholder="e.g. Juan Dela Cruz">
                 </div>
 
                 <div class="form-group">
@@ -716,7 +809,8 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
     <script>
         window.calendarData = <?php echo json_encode([
             'year' => $calendar_year,
-            'employees' => $all_employees,
+            'month' => $calendar_month,
+            'employees' => $calendar_employee_names,
             'entries' => $calendar_entries,
             'types' => array_values(array_map(fn($lt) => $lt['name'], $leave_types))
         ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;

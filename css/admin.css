@@ -35,7 +35,7 @@
 }
 
 #calendarModal .modal-box {
-    width: min(1100px, 96vw);
+    width: min(1600px, 97vw);
     max-height: 92vh;
 }
 
@@ -158,8 +158,8 @@
 
 /* ── Layout ────────────────────────────────────────────────────────────────── */
 .container {
-    max-width: 1600px !important;
-    width: 98% !important;
+    max-width: 2000px !important;
+    width: 97% !important;
 }
 
 /* ── Toast Notifications ───────────────────────────────────────────────────── */
@@ -447,7 +447,7 @@
 
 .calendar-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
     gap: 14px;
 }
 
@@ -485,18 +485,19 @@
 }
 
 .calendar-day {
-    min-height: 54px;
+    min-height: 68px;
     background: #fff;
     border: 1px solid #eef1f5;
     border-radius: 8px;
-    padding: 4px 2px 6px;
+    padding: 6px 4px 8px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 2px;
+    gap: 4px;
     font-size: 10px;
     color: #4b5563;
+    overflow: hidden;
 }
 
 .calendar-day.empty {
@@ -515,6 +516,7 @@
     font-weight: 700;
     color: #1f2937;
     background: #f3f4f6;
+    flex-shrink: 0;
 }
 
 .leave-label {
@@ -524,6 +526,8 @@
     text-align: center;
     line-height: 1.2;
     font-weight: 600;
+    max-width: 100%;
+    word-break: break-word;
 }
 
 .leave-list {
@@ -545,6 +549,16 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+.leave-list-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
 }
 
 .leave-list-item {

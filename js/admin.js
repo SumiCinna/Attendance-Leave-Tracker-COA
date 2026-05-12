@@ -1,37 +1,23 @@
 // js/admin.js
 const getEl = (id) => document.getElementById(id);
 
-let currentMode = "select";
+let currentMode = "existing";
 
-function setMode(mode) {
-    currentMode = mode;
+function setEmployeeMode(mode) {
+    currentMode = mode === "new" ? "new" : "existing";
 
-    const selectMode         = getEl("selectMode");
-    const manualMode         = getEl("manualMode");
-    const modeSelectBtn      = getEl("modeSelectBtn");
-    const modeManualBtn      = getEl("modeManualBtn");
-    const manualUserId       = getEl("manual_user_id");
-    const userSelect         = getEl("user_select");
-    const selectEmailDisplay = getEl("select_email_display");
-    const manualFirstName    = getEl("manual_first_name");
-    const manualMiddleName   = getEl("manual_middle_name");
-    const manualLastName     = getEl("manual_last_name");
-    const manualEmailInput   = getEl("manual_email_input");
-    const addLeaveError      = getEl("addLeaveError");
+    const selectDiv = getEl("employeeSelectDiv");
+    const manualDiv = getEl("employeeManualDiv");
+    const existingInput = getEl("existing_employee");
+    const newInput = getEl("new_employee_name");
+    const addLeaveError = getEl("addLeaveError");
 
-    if (selectMode)         selectMode.style.display     = mode === "select" ? "block" : "none";
-    if (manualMode)         manualMode.style.display      = mode === "manual" ? "block" : "none";
-    if (modeSelectBtn)      modeSelectBtn.classList.toggle("active", mode === "select");
-    if (modeManualBtn)      modeManualBtn.classList.toggle("active", mode === "manual");
+    if (selectDiv) selectDiv.style.display = currentMode === "existing" ? "block" : "none";
+    if (manualDiv) manualDiv.style.display = currentMode === "new" ? "block" : "none";
 
-    if (manualUserId)       manualUserId.value        = "";
-    if (userSelect)         userSelect.value           = "";
-    if (selectEmailDisplay) selectEmailDisplay.value   = "";
-    if (manualFirstName)    manualFirstName.value      = "";
-    if (manualMiddleName)   manualMiddleName.value     = "";
-    if (manualLastName)     manualLastName.value        = "";
-    if (manualEmailInput)   manualEmailInput.value     = "";
-    if (addLeaveError)      addLeaveError.style.display = "none";
+    if (currentMode === "existing" && existingInput) existingInput.value = "";
+    if (currentMode === "new" && newInput) newInput.value = "";
+    if (addLeaveError) addLeaveError.style.display = "none";
 }
 
 function showError(msg) {
@@ -45,28 +31,15 @@ function submitAddLeave() {
     const addLeaveError = getEl("addLeaveError");
     if (addLeaveError) addLeaveError.style.display = "none";
 
-    const userSelect   = getEl("user_select");
-    const manualUserId = getEl("manual_user_id");
-    if (userSelect && manualUserId) {
-        manualUserId.value = userSelect.value || "";
-    }
-
     const leaveDate = getEl("manual_leave_date")?.value.trim() || "";
     const leaveType = getEl("manual_leave_type")?.value.trim() || "";
 
-    if (currentMode === "select") {
-        const uid = manualUserId?.value || "";
-        if (!uid) { showError("Please select an employee."); return; }
+    if (currentMode === "existing") {
+        const existing = getEl("existing_employee")?.value.trim() || "";
+        if (!existing) { showError("Please select an employee."); return; }
     } else {
-        const first = getEl("manual_first_name")?.value.trim()  || "";
-        const last  = getEl("manual_last_name")?.value.trim()   || "";
-        const email = getEl("manual_email_input")?.value.trim() || "";
-        if (!first || !last) { showError("First and last name are required."); return; }
-        if (!email)           { showError("Gmail is required."); return; }
-        if (!/^[^\s@]+@gmail\.com$/i.test(email)) {
-            showError("Enter a valid @gmail.com address.");
-            return;
-        }
+        const name = getEl("new_employee_name")?.value.trim() || "";
+        if (!name) { showError("Please enter the new employee name."); return; }
     }
 
     if (!leaveDate) { showError("Leave date is required."); return; }
@@ -76,19 +49,13 @@ function submitAddLeave() {
 }
 
 function openAddLeaveModal() {
-    setMode("select");
+    setEmployeeMode("existing");
     const leaveDate       = getEl("manual_leave_date");
     const leaveType       = getEl("manual_leave_type");
-    const firstNameCount  = getEl("firstNameCount");
-    const middleNameCount = getEl("middleNameCount");
-    const lastNameCount   = getEl("lastNameCount");
     const addLeaveModal   = getEl("addLeaveModal");
 
     if (leaveDate)       leaveDate.value               = "";
     if (leaveType)       leaveType.value                = "";
-    if (firstNameCount)  firstNameCount.textContent     = "0 / 100";
-    if (middleNameCount) middleNameCount.textContent    = "0 / 100";
-    if (lastNameCount)   lastNameCount.textContent      = "0 / 100";
     if (addLeaveModal)   addLeaveModal.classList.add("open");
 }
 
@@ -117,7 +84,7 @@ function confirmArchive() {
     closeArchiveModal();
 }
 
-window.setMode            = setMode;
+window.setEmployeeMode    = setEmployeeMode;
 window.submitAddLeave     = submitAddLeave;
 window.closeAddLeaveModal = closeAddLeaveModal;
 window.openArchiveModal   = openArchiveModal;
@@ -251,34 +218,16 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // ── Employee Select → Auto-fill email ───────────────────────────────────
-    const userSelect = getEl("user_select");
-    if (userSelect) {
-        userSelect.addEventListener("change", () => {
-            const opt              = userSelect.options[userSelect.selectedIndex];
-            const manualUserId     = getEl("manual_user_id");
-            const selectEmailDisplay = getEl("select_email_display");
-            if (manualUserId)        manualUserId.value       = opt?.value || "";
-            if (selectEmailDisplay)  selectEmailDisplay.value = opt?.value ? opt.getAttribute("data-email") : "";
-        });
+    // ── Employee Mode Toggle ───────────────────────────────────────────────
+    const modeExisting = getEl("employeeModeExisting");
+    const modeNew = getEl("employeeModeNew");
+    const existingSelect = getEl("existing_employee");
+    if (modeExisting) modeExisting.addEventListener("change", () => setEmployeeMode("existing"));
+    if (modeNew) modeNew.addEventListener("change", () => setEmployeeMode("new"));
+    if (existingSelect && existingSelect.options.length <= 1 && modeNew) {
+        modeNew.checked = true;
+        setEmployeeMode("new");
     }
-
-    // ── Character Counters ───────────────────────────────────────────────────
-    function attachCounter(inputId, countId) {
-        const input = getEl(inputId);
-        if (!input) return;
-        input.addEventListener("input", () => {
-            const len = input.value.length;
-            const el  = getEl(countId);
-            if (el) {
-                el.textContent = `${len} / 100`;
-                el.classList.toggle("warn", len >= 90);
-            }
-        });
-    }
-    attachCounter("manual_first_name",  "firstNameCount");
-    attachCounter("manual_middle_name", "middleNameCount");
-    attachCounter("manual_last_name",   "lastNameCount");
 
     // ── Open Add Leave Modal ─────────────────────────────────────────────────
     getEl("openAddLeaveBtn")?.addEventListener("click", openAddLeaveModal);
@@ -343,27 +292,33 @@ document.addEventListener("DOMContentLoaded", () => {
     const calendarModal = getEl("calendarModal");
     const calendarSubtitle = getEl("calendarSubtitle");
     const calendarButtons = document.querySelectorAll(".btn-calendar");
-    const archiveAbsenceForm = getEl("archiveAbsenceForm");
-    const archiveAbsenceId = getEl("archiveAbsenceId");
-    const archiveAbsenceValue = getEl("archiveAbsenceValue");
+    const archiveLeaveForm = getEl("archiveLeaveForm");
+    const archiveLeaveId = getEl("archiveLeaveId");
+    const archiveLeaveValue = getEl("archiveLeaveValue");
     const deleteLeavesModal = getEl("deleteLeavesModal");
     const deleteLeavesForm = getEl("deleteLeavesForm");
-    const deleteAbsenceId = getEl("deleteAbsenceId");
+    const deleteLeaveId = getEl("deleteLeaveId");
     const deleteLeavesSub = getEl("deleteLeavesSub");
 
     if (calendarData && calendarGrid) {
         const year = Number(calendarData.year) || new Date().getFullYear();
+        const selectedMonth = Number(calendarData.month) || 0;
+        const monthNames = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+        const activeMonthLabel = selectedMonth ? monthNames[selectedMonth - 1] : "";
         const entriesByUser = new Map();
 
-(calendarData.entries || []).forEach(entry => {
-    const key = String(entry.employee_name).trim().toLowerCase();
+        (calendarData.entries || []).forEach(entry => {
+            const key = String(entry.employee_name || "").trim().toLowerCase();
+            if (!key) return;
+            if (!entriesByUser.has(key)) {
+                entriesByUser.set(key, []);
+            }
 
-    if (!entriesByUser.has(key)) {
-        entriesByUser.set(key, []);
-    }
-
-    entriesByUser.get(key).push(entry);
-});
+            entriesByUser.get(key).push(entry);
+        });
 
         const palette = [
             "#2563eb", "#16a34a", "#f97316", "#7c3aed", "#0ea5e9",
@@ -411,7 +366,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         };
 
-        const renderLeaveList = (entries) => {
+        const renderLeaveList = (entries, page = 1) => {
             if (!leaveList) return;
             leaveList.innerHTML = "";
             if (!entries.length) {
@@ -419,14 +374,20 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-                const listTitle = document.createElement("div");
+            const perPage = 10;
+            const totalPages = Math.max(1, Math.ceil(entries.length / perPage));
+            const safePage = Math.min(Math.max(page, 1), totalPages);
+            const startIndex = (safePage - 1) * perPage;
+            const pageEntries = entries.slice(startIndex, startIndex + perPage);
+
+            const listTitle = document.createElement("div");
             listTitle.className = "leave-list-title";
             listTitle.textContent = "Leave Dates";
             leaveList.appendChild(listTitle);
 
             const list = document.createElement("div");
             list.className = "leave-list-items";
-            entries.forEach(entry => {
+            pageEntries.forEach(entry => {
                 const item = document.createElement("div");
                 item.className = "leave-list-item";
 
@@ -450,10 +411,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 const nextArchived = entry.is_archived ? 0 : 1;
                 archiveBtn.textContent = entry.is_archived ? "Recover" : "Archive";
                 archiveBtn.addEventListener("click", () => {
-                    if (!archiveAbsenceForm) return;
-                    if (archiveAbsenceId) archiveAbsenceId.value = entry.id;
-                    if (archiveAbsenceValue) archiveAbsenceValue.value = String(nextArchived);
-                    archiveAbsenceForm.submit();
+                    if (!archiveLeaveForm) return;
+                    if (archiveLeaveId) archiveLeaveId.value = entry.id;
+                    if (archiveLeaveValue) archiveLeaveValue.value = String(nextArchived);
+                    archiveLeaveForm.submit();
                 });
 
                 const deleteBtn = document.createElement("button");
@@ -462,7 +423,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 deleteBtn.textContent = "Delete";
                 deleteBtn.addEventListener("click", () => {
                     if (deleteLeavesModal) deleteLeavesModal.classList.add("open");
-                    if (deleteAbsenceId) deleteAbsenceId.value = entry.id;
+                    if (deleteLeaveId) deleteLeaveId.value = entry.id;
                     if (deleteLeavesForm) deleteLeavesForm.reset();
                     if (deleteLeavesSub) {
                         deleteLeavesSub.textContent = `Delete leave on ${entry.leave_date}? Enter your password to confirm.`;
@@ -478,18 +439,47 @@ document.addEventListener("DOMContentLoaded", () => {
                 list.appendChild(item);
             });
             leaveList.appendChild(list);
+
+            if (totalPages > 1) {
+                const pagination = document.createElement("div");
+                pagination.className = "leave-list-pagination";
+
+                const prevBtn = document.createElement("button");
+                prevBtn.type = "button";
+                prevBtn.className = "btn btn-outline";
+                prevBtn.textContent = "Prev";
+                prevBtn.disabled = safePage === 1;
+                prevBtn.addEventListener("click", () => renderLeaveList(entries, safePage - 1));
+
+                const pageInfo = document.createElement("span");
+                pageInfo.textContent = `Page ${safePage} of ${totalPages}`;
+
+                const nextBtn = document.createElement("button");
+                nextBtn.type = "button";
+                nextBtn.className = "btn btn-outline";
+                nextBtn.textContent = "Next";
+                nextBtn.disabled = safePage === totalPages;
+                nextBtn.addEventListener("click", () => renderLeaveList(entries, safePage + 1));
+
+                pagination.appendChild(prevBtn);
+                pagination.appendChild(pageInfo);
+                pagination.appendChild(nextBtn);
+                leaveList.appendChild(pagination);
+            }
         };
 
         const renderCalendar = (employeeName) => {
+            const userKey = String(employeeName)
+                .trim()
+                .toLowerCase();
 
-    const userKey = String(employeeName)
-        .trim()
-        .toLowerCase();
+            const activeMonthLabel = selectedMonth ? monthNames[selectedMonth - 1] : "";
 
-    if (calendarTitle) {
-        calendarTitle.textContent = `${employeeName} — ${year}`;
-    }
-
+            if (calendarTitle) {
+                calendarTitle.textContent = selectedMonth
+                    ? `${employeeName} — ${activeMonthLabel} ${year}`
+                    : `${employeeName} — ${year}`;
+            }
 
             const userEntries = (entriesByUser.get(userKey) || []).slice();
             userEntries.sort((a, b) => (a.leave_date || "").localeCompare(b.leave_date || ""));
@@ -499,9 +489,9 @@ document.addEventListener("DOMContentLoaded", () => {
             userEntries.forEach(entry => {
                 if (!entry.leave_date) return;
                 const [y, m, d] = entry.leave_date.split("-").map(Number);
-
-const dateObj = new Date(y, m - 1, d);
+                const dateObj = new Date(y, m - 1, d);
                 if (Number.isNaN(dateObj.getTime()) || dateObj.getFullYear() !== year) return;
+                if (selectedMonth && dateObj.getMonth() + 1 !== selectedMonth) return;
                 const monthIndex = dateObj.getMonth();
                 const day = dateObj.getDate();
                 if (!entriesByMonthDay[monthIndex][day]) entriesByMonthDay[monthIndex][day] = [];
@@ -509,13 +499,12 @@ const dateObj = new Date(y, m - 1, d);
             });
 
             calendarGrid.innerHTML = "";
-            const monthNames = [
-                "January", "February", "March", "April", "May", "June",
-                "July", "August", "September", "October", "November", "December"
-            ];
             const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-            monthNames.forEach((monthName, monthIndex) => {
+            const monthsToRender = selectedMonth ? [selectedMonth - 1] : monthNames.map((_, idx) => idx);
+
+            monthsToRender.forEach((monthIndex) => {
+                const monthName = monthNames[monthIndex];
                 const card = document.createElement("div");
                 card.className = "month-card";
 
@@ -584,7 +573,9 @@ const dateObj = new Date(y, m - 1, d);
         const openCalendarModal = (userId) => {
             if (calendarModal) calendarModal.classList.add("open");
             if (calendarSubtitle) {
-                calendarSubtitle.textContent = `Absences for ${year}.`;
+                calendarSubtitle.textContent = selectedMonth
+                    ? `Absences for ${activeMonthLabel} ${year}.`
+                    : `Absences for ${year}.`;
             }
             renderCalendar(userId);
         };
@@ -607,20 +598,32 @@ const dateObj = new Date(y, m - 1, d);
             });
         }
 
+        const existingLeaveSet = new Set(
+            (calendarData.entries || [])
+                .filter(entry => entry.employee_name && entry.leave_date)
+                .map(entry => `${String(entry.employee_name).trim().toLowerCase()}|${entry.leave_date}`)
+        );
+
+        const getCurrentEmployeeName = () => {
+            if (currentMode === "new") {
+                return getEl("new_employee_name")?.value.trim() || "";
+            }
+            return getEl("existing_employee")?.value.trim() || "";
+        };
+
         const validateDuplicateLeave = () => {
             const leaveDate = getEl("manual_leave_date")?.value || "";
-            const userSelect = getEl("user_select")?.value || "";
-            const manualUserId = getEl("manual_user_id")?.value || "";
-            const userId = manualUserId || userSelect;
-            if (!leaveDate || !userId) return true;
-            if (existingLeaveSet.has(`${userId}|${leaveDate}`)) {
+            const employeeName = getCurrentEmployeeName();
+            if (!leaveDate || !employeeName) return true;
+            const key = `${employeeName.toLowerCase()}|${leaveDate}`;
+            if (existingLeaveSet.has(key)) {
                 showError("A leave entry already exists on that date for this employee.");
                 return false;
             }
             return true;
         };
 
-        ["manual_leave_date", "user_select"].forEach((id) => {
+        ["manual_leave_date", "existing_employee", "new_employee_name"].forEach((id) => {
             const el = getEl(id);
             if (el) {
                 el.addEventListener("change", () => {
@@ -653,6 +656,9 @@ function printTable() {
         "January", "February", "March", "April", "May", "June",
         "July", "August", "September", "October", "November", "December"
     ];
+    const year = Number(calendarData.year) || new Date().getFullYear();
+    const selectedMonth = Number(calendarData.month) || 0;
+    const monthLabel = selectedMonth ? `${months[selectedMonth - 1]} ` : "";
     const normalizeType = (type) => {
         const raw = String(type || "").trim();
         if (!raw) return "Other";
@@ -661,22 +667,23 @@ function printTable() {
         return raw;
     };
     const typeList = (calendarData.types || []).map(normalizeType);
-    const users = calendarData.users || [];
+    const employees = (calendarData.employees || []).filter(Boolean);
 
     const data = {};
     (calendarData.entries || []).forEach(entry => {
         const type = normalizeType(entry.leave_type);
+        const employeeName = String(entry.employee_name || "").trim();
+        if (!employeeName) return;
         if (!data[type]) data[type] = {};
-        if (!data[type][entry.user_id]) data[type][entry.user_id] = {};
+        if (!data[type][employeeName]) data[type][employeeName] = {};
         if (!entry.leave_date) return;
         const [y, m, d] = entry.leave_date.split("-").map(Number);
-
-const dateObj = new Date(y, m - 1, d);
+        const dateObj = new Date(y, m - 1, d);
         if (Number.isNaN(dateObj.getTime())) return;
         const month = dateObj.getMonth() + 1;
         const day = dateObj.getDate();
-        if (!data[type][entry.user_id][month]) data[type][entry.user_id][month] = [];
-        data[type][entry.user_id][month].push(day);
+        if (!data[type][employeeName][month]) data[type][employeeName][month] = [];
+        data[type][employeeName][month].push(day);
     });
 
     const buildTableHtml = () => {
@@ -691,8 +698,8 @@ const dateObj = new Date(y, m - 1, d);
                     </tr>
             `;
 
-            users.forEach(user => {
-                const row = data[type]?.[user.id] || {};
+            employees.forEach(name => {
+                const row = data[type]?.[name] || {};
                 const cells = [];
                 for (let m = 1; m <= 12; m += 1) {
                     const days = row[m] ? Array.from(new Set(row[m])).sort((a, b) => a - b) : [];
@@ -700,7 +707,7 @@ const dateObj = new Date(y, m - 1, d);
                 }
                 html += `
                     <tr>
-                        <td>${user.name}</td>
+                        <td>${name}</td>
                         ${cells.join("")}
                     </tr>
                 `;
@@ -756,7 +763,7 @@ const dateObj = new Date(y, m - 1, d);
             </style>
         </head>
         <body>
-            <h2>Leave Monitoring</h2>
+            <h2>Leave Monitoring - ${monthLabel}${year}</h2>
             ${tableHTML}
         </body>
         </html>
@@ -767,8 +774,3 @@ const dateObj = new Date(y, m - 1, d);
     iframe.contentWindow.print();
 }
 
-function toggleEmployeeInput() {
-    const isManual = document.getElementById('toggleManual').checked;
-    document.getElementById('employeeSelectDiv').style.display = isManual ? 'none' : 'block';
-    document.getElementById('employeeManualDiv').style.display = isManual ? 'block' : 'none';
-}
