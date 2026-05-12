@@ -27,7 +27,7 @@
     <main class="container">
         <section class="card hero">
             <h2>Welcome</h2>
-            <p>Track your leave requests and absence reasons.</p>
+            <p>Track your leave requests and absence history.</p>
             <div class="hero-actions">
                 <a href="register.php" class="btn">Create Account</a>
                 <a href="login.php" class="btn btn-outline">Sign In</a>
@@ -52,7 +52,7 @@
                 <h3>How it works</h3>
                 <ol>
                     <li>Register using a Gmail address.</li>
-                    <li>Log in and submit your leave or absence reason.</li>
+                    <li>Log in and submit your leave or absence details.</li>
                     <li>Admin will review your leave request.</li>
                     <li>Review your submission history anytime.</li>
                 </ol>

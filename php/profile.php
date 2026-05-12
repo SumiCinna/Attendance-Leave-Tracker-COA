@@ -157,7 +157,7 @@ $fullName = e($user["first_name"]) . ' ' . e($user["middle_name"]) . ' ' . e($us
             </div>
         </div>
         <nav class="nav-links">
-            <a href="dashboard.php" class="btn btn-outline">← Dashboard</a>
+            
             <?php if ($isAdmin): ?>
                 <a href="admin.php" class="btn">Admin View</a>
             <?php endif; ?>

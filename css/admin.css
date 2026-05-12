@@ -10,6 +10,14 @@
     z-index: 1000;
 }
 
+#deleteLeavesModal {
+    z-index: 2200;
+}
+
+#calendarModal {
+    z-index: 1500;
+}
+
 .modal-overlay.open {
     display: flex;
 }
@@ -24,6 +32,11 @@
     overflow-y: auto;
     animation: rise 0.25s ease-out;
     box-shadow: 0 20px 60px rgba(13, 27, 75, 0.2);
+}
+
+#calendarModal .modal-box {
+    width: min(1100px, 96vw);
+    max-height: 92vh;
 }
 
 .modal-box h3 {
@@ -58,6 +71,40 @@
     color: #333;
     border: 1px solid var(--border);
     width: 100%;
+}
+
+.input-with-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.input-with-button input {
+    flex: 1;
+}
+
+.toggle-password {
+    border: 1px solid var(--border);
+    background: #ffffff;
+    color: var(--text-muted);
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.toggle-password:hover {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+
+.eye-icon {
+    width: 20px;
+    height: 20px;
 }
 
 .modal-box textarea {
@@ -140,6 +187,48 @@
     background: #fff0f0;
     color: #c43c3c;
     border-left-color: #c43c3c;
+}
+
+/* ── Summary Table Links ─────────────────────────────────────────────────── */
+.employee-link {
+    background: none;
+    border: none;
+    color: var(--navy);
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+}
+
+.employee-link:hover {
+    text-decoration: underline;
+}
+
+.btn-delete {
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    color: #b91c1c;
+    font-weight: 600;
+}
+
+.btn-delete:hover {
+    background: #fecaca;
+}
+
+.btn-calendar {
+    background: #eef2ff;
+    color: #1e3a8a;
+    border: 1px solid #c7d2fe;
+    box-shadow: none;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.btn-calendar:hover {
+    background: #e0e7ff;
+    transform: translateY(-1px);
 }
 
 /* ── Archive Toggle Switch ─────────────────────────────────────────────────── */
@@ -270,6 +359,261 @@
     cursor: pointer;
     transition: background 0.18s, border-color 0.18s, color 0.18s;
     white-space: nowrap;
+}
+
+/* ── Employee Calendar ───────────────────────────────────────────────────── */
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.calendar-layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 20px;
+    align-items: start;
+}
+
+.employee-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 680px;
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.employee-item {
+    border: 1px solid var(--border);
+    background: #f8fafc;
+    border-radius: 10px;
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--navy);
+    transition: all 0.2s ease;
+}
+
+.employee-item:hover {
+    border-color: var(--primary);
+}
+
+.employee-item.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+    box-shadow: 0 6px 14px rgba(37, 99, 235, 0.2);
+}
+
+.calendar-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.calendar-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+}
+
+.month-card {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+.month-header {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+    text-align: center;
+    margin-bottom: 6px;
+}
+
+.weekday-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    font-size: 10px;
+    text-align: center;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.calendar-day {
+    min-height: 54px;
+    background: #fff;
+    border: 1px solid #eef1f5;
+    border-radius: 8px;
+    padding: 4px 2px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 2px;
+    font-size: 10px;
+    color: #4b5563;
+}
+
+.calendar-day.empty {
+    background: transparent;
+    border: none;
+}
+
+.day-number {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #1f2937;
+    background: #f3f4f6;
+}
+
+.leave-label {
+    font-size: 9px;
+    padding: 2px 4px;
+    border-radius: 6px;
+    text-align: center;
+    line-height: 1.2;
+    font-weight: 600;
+}
+
+.leave-list {
+    margin-top: 12px;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.leave-list-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 8px;
+}
+
+.leave-list-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.leave-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    border: 1px solid #eef1f5;
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 12px;
+}
+
+.leave-list-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.leave-list-actions .btn {
+    padding: 6px 10px;
+    font-size: 11px;
+    box-shadow: none;
+}
+
+.leave-list-date {
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.leave-list-type {
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 11px;
+    text-align: center;
+}
+
+.leave-vacation {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.leave-sick {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.leave-other {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+@media (max-width: 980px) {
+    .calendar-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .employee-list {
+        flex-direction: row;
+        flex-wrap: wrap;
+        max-height: unset;
+    }
+
+    .employee-item {
+        flex: 1 1 200px;
+    }
 }
 
 .btn-archive:hover {

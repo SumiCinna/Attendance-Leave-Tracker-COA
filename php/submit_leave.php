@@ -10,20 +10,14 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
 
 $leaveDate = trim($_POST["leave_date"] ?? "");
 $leaveType = trim($_POST["leave_type"] ?? "");
-$reason = trim($_POST["reason"] ?? "");
 
-if ($leaveDate === "" || $leaveType === "" || $reason === "") {
+if ($leaveDate === "" || $leaveType === "") {
     header("Location: dashboard.php?status=error");
     exit;
 }
 
-if (strlen($reason) > 500) {
-    header("Location: dashboard.php?status=error");
-    exit;
-}
-
-$stmt = $mysqli->prepare("INSERT INTO absences (user_id, leave_date, leave_type, reason) VALUES (?, ?, ?, ?)");
-$stmt->bind_param("isss", $_SESSION["user_id"], $leaveDate, $leaveType, $reason);
+$stmt = $mysqli->prepare("INSERT INTO absences (user_id, leave_date, leave_type) VALUES (?, ?, ?)");
+$stmt->bind_param("iss", $_SESSION["user_id"], $leaveDate, $leaveType);
 $success = $stmt->execute();
 $stmt->close();
 

@@ -29,6 +29,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_leave_type"])) {
     exit;
 }
 
+$selected_year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
+
 // ── Toggle Leave Type Active/Inactive ──────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_leave_type"])) {
     $lt_id     = (int)$_POST["lt_id"];
@@ -47,7 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_leave_type"]))
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["delete_leave_type"])) {
     $lt_id = (int)$_POST["lt_id"];
 
-    $check = $mysqli->prepare("SELECT COUNT(*) as c FROM absences WHERE leave_type = (SELECT name FROM leave_types WHERE id = ?)");
+    $check = $mysqli->prepare("SELECT COUNT(*) as c FROM leave_data WHERE leave_type = (SELECT name FROM leave_types WHERE id = ?)");
     $check->bind_param("i", $lt_id);
     $check->execute();
     $in_use = $check->get_result()->fetch_assoc()['c'];
@@ -67,28 +69,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["delete_leave_type"]))
     exit;
 }
 
-// ── Update Status (Approve / Reject) ──────────────────────────────────────────
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update_status"])) {
-    $absence_id    = (int)$_POST["absence_id"];
-    $status        = $_POST["status"];
-    $admin_remarks = trim($_POST["admin_remarks"] ?? "");
+// ── Archive / Recover Leave Record ─────────────────────────────────────────
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_archive_leave"])) {
+    $leave_id    = (int)$_POST["leave_id"];
+    $new_archived = (int)($_POST["new_archived"] ?? 0);
 
-    $stmt = $mysqli->prepare("UPDATE absences SET status = ?, admin_remarks = ? WHERE id = ?");
-    $stmt->bind_param("ssi", $status, $admin_remarks, $absence_id);
-    $stmt->execute();
-    $stmt->close();
-
-    header("Location: admin.php" . (isset($_GET['page']) ? "?page=" . (int)$_GET['page'] : ""));
-    exit;
-}
-
-// ── Toggle Archive / Recover ───────────────────────────────────────────────────
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_archive"])) {
-    $absence_id   = (int)$_POST["absence_id"];
-    $new_archived = (int)$_POST["new_archived"];
-
-    $stmt = $mysqli->prepare("UPDATE absences SET is_archived = ? WHERE id = ?");
-    $stmt->bind_param("ii", $new_archived, $absence_id);
+    $stmt = $mysqli->prepare("UPDATE leave_data SET is_archived = ? WHERE id = ?");
+    $stmt->bind_param("ii", $new_archived, $leave_id);
     $stmt->execute();
     $stmt->close();
 
@@ -97,67 +84,68 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_archive"])) {
     exit;
 }
 
+// ── Delete Leave Record (Password Confirm) ─────────────────────────────────
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["delete_leave"])) {
+    $leave_id   = (int)$_POST["leave_id"];
+    $password_input = $_POST["confirm_password"] ?? "";
+
+    $msg_status = "error";
+    $msg_text   = "Invalid password. Leave record was not deleted.";
+
+    $admin_stmt = $mysqli->prepare("SELECT password_hash FROM users WHERE id = ? LIMIT 1");
+    $admin_stmt->bind_param("i", $_SESSION['user_id']);
+    $admin_stmt->execute();
+    $admin_row = $admin_stmt->get_result()->fetch_assoc();
+    $admin_stmt->close();
+
+    if ($admin_row && password_verify($password_input, $admin_row['password_hash'])) {
+        $del_stmt = $mysqli->prepare("DELETE FROM leave_data WHERE id = ?");
+        $del_stmt->bind_param("i", $leave_id);
+        $del_stmt->execute();
+        $del_stmt->close();
+        $msg_status = "success";
+        $msg_text   = "Leave record deleted.";
+    }
+
+    header("Location: admin.php?delete_status=" . $msg_status . "&delete_msg=" . urlencode($msg_text));
+    exit;
+}
+
 // ── Add Leave Manually ─────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_leave_manual"])) {
-    $user_id_input = (int)($_POST["manual_user_id"] ?? $_POST["user_select_id"] ?? 0);
-    $manual_first  = trim($_POST["manual_first_name"] ?? "");
-    $manual_middle = trim($_POST["manual_middle_name"] ?? "");
-    $manual_last   = trim($_POST["manual_last_name"] ?? "");
-    $manual_email  = trim($_POST["manual_email"] ?? "");
+    $employee_name = trim($_POST["manual_employee_name"] ?? "");
     $leave_date    = trim($_POST["manual_leave_date"] ?? "");
     $leave_type    = trim($_POST["manual_leave_type"] ?? "");
-    $reason        = trim($_POST["manual_reason"] ?? "");
 
     $add_status = "success";
     $add_msg    = "Leave added successfully.";
 
-    if ($leave_date === "" || $leave_type === "" || $reason === "") {
-        $add_status = "error"; $add_msg = "Leave date, type, and reason are required.";
-    } elseif (strlen($reason) > 100) {
-        $add_status = "error"; $add_msg = "Reason must be 100 characters or less.";
+    if ($employee_name === "" || $leave_date === "" || $leave_type === "") {
+        $add_status = "error";
+        $add_msg    = "Employee name, leave date, and leave type are required.";
     }
 
     if ($add_status === "success") {
-        if ($user_id_input > 0) {
-            $stmt = $mysqli->prepare("INSERT INTO absences (user_id, leave_date, leave_type, reason, status, created_at) VALUES (?, ?, ?, ?, 'Pending', NOW())");
-            $stmt->bind_param("isss", $user_id_input, $leave_date, $leave_type, $reason);
-            $stmt->execute();
-            if ($stmt->affected_rows <= 0) { $add_status = "error"; $add_msg = "Unable to save the leave request."; }
-            $stmt->close();
+        // Check for duplicate
+        $dup_stmt = $mysqli->prepare("SELECT 1 FROM leave_data WHERE employee_name = ? AND leave_date = ? LIMIT 1");
+        $dup_stmt->bind_param("ss", $employee_name, $leave_date);
+        $dup_stmt->execute();
+        $dup_stmt->store_result();
+        $exists = $dup_stmt->num_rows > 0;
+        $dup_stmt->close();
+
+        if ($exists) {
+            $add_status = "error";
+            $add_msg    = "A leave entry already exists on that date for this employee.";
         } else {
-            if ($manual_first === "" || $manual_last === "" || $manual_email === "") {
-                $add_status = "error"; $add_msg = "First name, last name, and Gmail are required for manual entry.";
-            } elseif (!preg_match("/^[^\s@]+@gmail\.com$/i", $manual_email)) {
-                $add_status = "error"; $add_msg = "Enter a valid @gmail.com address.";
-            } else {
-                $stmt = $mysqli->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
-                $stmt->bind_param("s", $manual_email);
-                $stmt->execute();
-                $row = $stmt->get_result()->fetch_assoc();
-                $stmt->close();
-
-                if ($row) {
-                    $uid = $row["id"];
-                } else {
-                    $temp_password = bin2hex(random_bytes(8));
-                    $hash = password_hash($temp_password, PASSWORD_DEFAULT);
-                    $role = 'employee';
-                    $stmt = $mysqli->prepare("INSERT INTO users (first_name, middle_name, last_name, email, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)");
-                    $stmt->bind_param("ssssss", $manual_first, $manual_middle, $manual_last, $manual_email, $hash, $role);
-                    $stmt->execute();
-                    if ($stmt->affected_rows > 0) { $uid = $stmt->insert_id; }
-                    else { $add_status = "error"; $add_msg = "Unable to create employee record."; }
-                    $stmt->close();
-                }
-
-                if ($add_status === "success" && !empty($uid)) {
-                    $stmt = $mysqli->prepare("INSERT INTO absences (user_id, leave_date, leave_type, reason, status, created_at) VALUES (?, ?, ?, ?, 'Pending', NOW())");
-                    $stmt->bind_param("isss", $uid, $leave_date, $leave_type, $reason);
-                    $stmt->execute();
-                    if ($stmt->affected_rows <= 0) { $add_status = "error"; $add_msg = "Unable to save the leave request."; }
-                    $stmt->close();
-                }
+            $stmt = $mysqli->prepare("INSERT INTO leave_data (employee_name, leave_date, leave_type, created_at) VALUES (?, ?, ?, NOW())");
+            $stmt->bind_param("sss", $employee_name, $leave_date, $leave_type);
+            $stmt->execute();
+            if ($stmt->affected_rows <= 0) {
+                $add_status = "error";
+                $add_msg    = "Unable to save the leave record.";
             }
+            $stmt->close();
         }
     }
 
@@ -168,77 +156,93 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_leave_manual"])) 
 // ── Filters & Pagination ───────────────────────────────────────────────────────
 $view_archived = isset($_GET['archived']) && $_GET['archived'] === '1' ? 1 : 0;
 
-$limit  = 10;
-$page   = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
-$offset = ($page - 1) * $limit;
-
 $search_name      = trim($_GET["search_name"] ?? "");
 $search_date      = trim($_GET["search_date"] ?? "");
-$search_submitted = trim($_GET["search_submitted"] ?? "");
 $filter_type      = trim($_GET["filter_type"] ?? "");
 
-$where_clauses = ["absences.is_archived = ?"];
-$params        = [$view_archived];
-$types         = "i";
+$where_clauses = [
+    "leave_data.is_archived = ?",
+    "YEAR(leave_data.leave_date) = ?"
+];
+
+
+$params        = [$view_archived, $selected_year];
+$types         = "ii";
 
 if ($search_name !== "") {
-    $where_clauses[] = "(users.first_name LIKE ? OR users.last_name LIKE ? OR users.middle_name LIKE ?)";
+    $where_clauses[] = "leave_data.employee_name LIKE ?";
     $like_name = "%{$search_name}%";
-    $params[] = $like_name; $params[] = $like_name; $params[] = $like_name;
-    $types   .= "sss";
+    $params[] = $like_name;
+    $types   .= "s";
 }
 if ($search_date !== "") {
-    $where_clauses[] = "absences.leave_date = ?";
-    $params[] = $search_date; $types .= "s";
-}
-if ($search_submitted !== "") {
-    $where_clauses[] = "DATE(absences.created_at) = ?";
-    $params[] = $search_submitted; $types .= "s";
+    $where_clauses[] = "leave_data.leave_date = ?";
+    $params[] = $search_date;
+    $types   .= "s";
 }
 if ($filter_type !== "") {
-    $where_clauses[] = "absences.leave_type = ?";
-    $params[] = $filter_type; $types .= "s";
+    $where_clauses[] = "leave_data.leave_type = ?";
+    $params[] = $filter_type;
+    $types   .= "s";
 }
 
 $where_sql = implode(" AND ", $where_clauses);
 
-$count_stmt = $mysqli->prepare("SELECT COUNT(*) as count FROM absences JOIN users ON absences.user_id = users.id WHERE $where_sql");
-$count_stmt->bind_param($types, ...$params);
-$count_stmt->execute();
-$total_records = $count_stmt->get_result()->fetch_assoc()['count'];
-$total_pages   = max(1, ceil($total_records / $limit));
-$count_stmt->close();
+// Get summary grouped by employee name
+$summary_query = "SELECT 
+    employee_name,
+    COUNT(id) as leave_count,
+    MAX(leave_date) as last_leave_date,
+    GROUP_CONCAT(DISTINCT leave_type ORDER BY leave_type) as leave_types
+    FROM leave_data
+    WHERE $where_sql
+    GROUP BY employee_name
+    ORDER BY employee_name ASC";
 
-$query = "SELECT absences.id, absences.leave_date, absences.leave_type, absences.reason,
-    absences.status, absences.admin_remarks, absences.created_at, absences.is_archived,
-    users.first_name, users.middle_name, users.last_name, users.email
-    FROM absences JOIN users ON absences.user_id = users.id
-    WHERE $where_sql ORDER BY absences.created_at DESC LIMIT ? OFFSET ?";
+$summary_stmt = $mysqli->prepare($summary_query);
+$summary_stmt->bind_param($types, ...$params);
+$summary_stmt->execute();
+$summary_records = $summary_stmt->get_result();
+$summary_stmt->close();
 
-$stmt = $mysqli->prepare($query);
-$bind_params   = $params;
-$bind_params[] = $limit;
-$bind_params[] = $offset;
-$stmt->bind_param($types . "ii", ...$bind_params);
-$stmt->execute();
-$records = $stmt->get_result();
-$stmt->close();
+$archived_count = $mysqli->query("SELECT COUNT(*) as c FROM leave_data WHERE is_archived = 1")->fetch_assoc()['c'] ?? 0;
 
-$archived_count = $mysqli->query("SELECT COUNT(*) as c FROM absences WHERE is_archived = 1")->fetch_assoc()['c'] ?? 0;
-
-$users_result = $mysqli->query("SELECT id, first_name, middle_name, last_name, email FROM users WHERE role = 'employee' ORDER BY first_name ASC");
-$all_users = [];
-while ($u = $users_result->fetch_assoc()) { $all_users[] = $u; }
+// Get unique employee names
+$employees_result = $mysqli->query("SELECT DISTINCT employee_name FROM leave_data ORDER BY employee_name ASC");
+$all_employees = [];
+while ($e = $employees_result->fetch_assoc()) {
+    $all_employees[] = $e['employee_name'];
+}
 
 $lt_result   = $mysqli->query("SELECT id, name, is_active FROM leave_types ORDER BY name ASC");
 $leave_types = [];
-while ($lt = $lt_result->fetch_assoc()) { $leave_types[] = $lt; }
+while ($lt = $lt_result->fetch_assoc()) {
+    $leave_types[] = $lt;
+}
 $active_leave_types = array_filter($leave_types, fn($lt) => $lt['is_active']);
 
-$query_string = $_GET;
-unset($query_string['page']);
-$base_qs  = http_build_query($query_string);
-$base_url = "?" . ($base_qs ? $base_qs . "&" : "") . "page=";
+$calendar_year = $selected_year;
+
+// Get calendar entries
+$calendar_stmt = $mysqli->prepare("SELECT id, employee_name, leave_date, leave_type, is_archived
+    FROM leave_data
+    WHERE is_archived = ?
+AND YEAR(leave_date) = ?
+    ORDER BY employee_name ASC, leave_date ASC");
+$calendar_stmt->bind_param("ii", $view_archived, $calendar_year);
+$calendar_stmt->execute();
+$calendar_result = $calendar_stmt->get_result();
+$calendar_entries = [];
+while ($row = $calendar_result->fetch_assoc()) {
+    $calendar_entries[] = [
+        'id' => (int)$row['id'],
+        'employee_name' => $row['employee_name'],
+        'leave_date' => $row['leave_date'],
+        'leave_type' => $row['leave_type'],
+        'is_archived' => (int)$row['is_archived']
+    ];
+}
+$calendar_stmt->close();
 
 $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
 ?>
@@ -329,7 +333,6 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
             </div>
         </div>
         <nav class="nav-links">
-            <a href="dashboard.php" class="btn btn-outline">My Dashboard</a>
             <a href="profile.php"   class="btn btn-outline">Profile</a>
             <a href="#" class="btn btn-outline" id="logoutBtn">Logout</a>
         </nav>
@@ -348,12 +351,30 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
             </div>
         <?php endif; ?>
 
+        <?php if (isset($_GET["delete_status"])): ?>
+            <div class="toast toast-<?php echo htmlspecialchars($_GET["delete_status"], ENT_QUOTES, "UTF-8"); ?>" id="deleteToast">
+                <?php echo htmlspecialchars($_GET["delete_msg"] ?? "", ENT_QUOTES, "UTF-8"); ?>
+            </div>
+        <?php endif; ?>
+
         <!-- Search / Filter -->
         <section class="card" style="margin-bottom: 24px;">
             <form method="GET" action="admin.php" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
                 <?php if ($view_archived): ?>
                     <input type="hidden" name="archived" value="1">
                 <?php endif; ?>
+                <div class="form-group" style="flex:1; min-width:120px;">
+    <label for="year">Year</label>
+
+    <select name="year" id="year">
+        <?php for ($y = date('Y') - 5; $y <= date('Y') + 1; $y++): ?>
+            <option value="<?php echo $y; ?>"
+                <?php echo $selected_year == $y ? 'selected' : ''; ?>>
+                <?php echo $y; ?>
+            </option>
+        <?php endfor; ?>
+    </select>
+</div>
                 <div class="form-group" style="flex:1; min-width:200px;">
                     <label for="search_name" style="font-size:13px; font-weight:600; color:var(--navy);">Employee Name</label>
                     <input type="text" name="search_name" id="search_name"
@@ -366,16 +387,10 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
                         value="<?php echo htmlspecialchars($search_date, ENT_QUOTES, "UTF-8"); ?>"
                         style="background:#fff; color:#333; border:1px solid var(--border);">
                 </div>
-                <div class="form-group" style="flex:1; min-width:130px;">
-                    <label for="search_submitted" style="font-size:13px; font-weight:600; color:var(--navy);">Date Submitted</label>
-                    <input type="date" name="search_submitted" id="search_submitted"
-                        value="<?php echo htmlspecialchars($search_submitted ?? '', ENT_QUOTES, "UTF-8"); ?>"
-                        style="background:#fff; color:#333; border:1px solid var(--border);">
-                </div>
                 <div class="form-group" style="flex:1; min-width:180px;">
-                    <label for="filter_type" style="font-size:13px; font-weight:600; color:var(--navy);">Category (Type)</label>
+                    <label for="filter_type" style="font-size:13px; font-weight:600; color:var(--navy);">Leave Type</label>
                     <select name="filter_type" id="filter_type" style="background:#fff; color:#333; border:1px solid var(--border);">
-                        <option value="">All Categories</option>
+                        <option value="">All Types</option>
                         <?php foreach ($leave_types as $lt): ?>
                             <option value="<?php echo htmlspecialchars($lt['name'], ENT_QUOTES, 'UTF-8'); ?>"
                                 <?php echo $filter_type === $lt['name'] ? 'selected' : ''; ?>>
@@ -397,14 +412,13 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
         <section class="card">
             <div class="action-row" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:center;">
                 <button type="button" class="btn btn-accent" id="openAddLeaveBtn" style="padding:10px; font-size:16px;">+ Add Leave Manually</button>
-<a href="export_leaves.php" class="btn" style="padding:9px; font-size:14px; text-decoration:none;">Export to CSV</a>
-<button type="button" class="btn" onclick="printTable()" style="padding:11px; font-size:14px;">Export to PDF</button>
-<button type="button" class="btn btn-outline" id="openLtModalBtn"
-    style="padding:10px; font-size:13px; border:1.5px solid var(--navy); color:var(--navy); background:transparent; display:inline-flex; align-items:center; gap:6px;">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-    Manage Leave Types
-</button>
-                
+                <a href="export_leaves.php" class="btn" style="padding:9px; font-size:14px; text-decoration:none;">Export to CSV</a>
+                <button type="button" class="btn" onclick="printTable()" style="padding:11px; font-size:14px;">Export to PDF</button>
+                <button type="button" class="btn btn-outline" id="openLtModalBtn"
+                    style="padding:10px; font-size:13px; border:1.5px solid var(--navy); color:var(--navy); background:transparent; display:inline-flex; align-items:center; gap:6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    Manage Leave Types
+                </button>
 
                 <div style="margin-left:auto; display:flex; align-items:center; gap:12px;">
                     <span class="archive-view-label <?php echo $view_archived ? 'archived' : 'active'; ?>">
@@ -430,94 +444,31 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
                 <table>
                     <thead>
                         <tr>
-                            <th>Employee</th>
-                            <th>Gmail</th>
-                            <th>Date</th>
-                            <th>Type</th>
-                            <th>Reason</th>
-                            <th>Status / Action</th>
-                            <th>Submitted</th>
-                            <th><?php echo $view_archived ? 'Recover' : 'Archive'; ?></th>
+                            <th>Employee Name</th>
+                            <th>Leave Count</th>
+                            <th>Last Leave Date</th>
+                            <th>Leave Types</th>
+                            <th>Calendar</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if ($records->num_rows === 0): ?>
+                        <?php if ($summary_records->num_rows === 0): ?>
                             <tr>
-                                <td colspan="8" class="muted" style="text-align:center; padding:32px 0;">
-                                    <?php echo $view_archived ? 'No archived leave records.' : 'No leave submissions yet.'; ?>
+                                <td colspan="5" class="muted" style="text-align:center; padding:32px 0;">
+                                    <?php echo $view_archived ? 'No archived leave records.' : 'No leave records yet.'; ?>
                                 </td>
                             </tr>
                         <?php else: ?>
-                            <?php while ($row = $records->fetch_assoc()): ?>
-                                <tr class="<?php echo $row['is_archived'] ? 'row-archived' : ''; ?>">
-                                    <td><?php echo htmlspecialchars(trim($row["first_name"] . " " . $row["middle_name"] . " " . $row["last_name"]), ENT_QUOTES, "UTF-8"); ?></td>
-                                    <td><?php echo htmlspecialchars($row["email"], ENT_QUOTES, "UTF-8"); ?></td>
-                                    <td><?php echo htmlspecialchars($row["leave_date"], ENT_QUOTES, "UTF-8"); ?></td>
-                                    <td><?php echo htmlspecialchars($row["leave_type"], ENT_QUOTES, "UTF-8"); ?></td>
-                                    <td><?php echo htmlspecialchars($row["reason"], ENT_QUOTES, "UTF-8"); ?></td>
+                            <?php while ($row = $summary_records->fetch_assoc()): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($row["employee_name"], ENT_QUOTES, "UTF-8"); ?></td>
+                                    <td><?php echo (int)$row['leave_count']; ?></td>
+                                    <td><?php echo htmlspecialchars($row['last_leave_date'] ?? '—', ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars($row['leave_types'] ?? '—', ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td>
-                                        <?php if ($view_archived): ?>
-                                            <?php if ($row["status"] === "Approved"): ?>
-                                                <span class="badge badge-green" style="padding:6px 12px;">Approved</span>
-                                            <?php elseif ($row["status"] === "Rejected"): ?>
-                                                <span class="badge badge-red" style="padding:6px 12px;">Rejected</span>
-                                                <?php if (!empty($row["admin_remarks"])): ?>
-                                                    <div style="font-size:11px; margin-top:4px; color:var(--text-muted);"><em>Note: <?php echo htmlspecialchars($row["admin_remarks"], ENT_QUOTES, "UTF-8"); ?></em></div>
-                                                <?php endif; ?>
-                                            <?php else: ?>
-                                                <span class="badge" style="padding:6px 12px; background:#e0e0e0; color:#555;">Pending</span>
-                                            <?php endif; ?>
-                                        <?php else: ?>
-                                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                                <?php if ($row["status"] === "Approved"): ?>
-                                                    <div>
-                                                        <span class="badge badge-green" style="margin-bottom:4px; padding:6px 12px;">Approved</span>
-                                                        <div style="margin-top:6px;">
-                                                            <button type="button" class="btn-auth-outline" style="padding:4px 8px; font-size:11px; cursor:pointer; border:none; background:transparent; text-decoration:underline;" onclick="openRejectModal(<?php echo $row['id']; ?>)">Change to Reject</button>
-                                                        </div>
-                                                    </div>
-                                                <?php elseif ($row["status"] === "Rejected"): ?>
-                                                    <div>
-                                                        <span class="badge badge-red" style="margin-bottom:4px; padding:6px 12px;">Rejected</span>
-                                                        <div style="font-size:11px; margin-top:4px; color:var(--text-muted);"><em>Note: <?php echo htmlspecialchars($row["admin_remarks"] ?? "", ENT_QUOTES, "UTF-8"); ?></em></div>
-                                                        <div style="margin-top:6px;">
-                                                            <button type="button" class="btn-auth-outline" style="padding:4px 8px; font-size:11px; cursor:pointer; border:none; background:transparent; text-decoration:underline;" onclick="openApproveModal(<?php echo $row['id']; ?>)">Change to Approve</button>
-                                                        </div>
-                                                    </div>
-                                                <?php else: ?>
-                                                    <button type="button" class="btn" style="padding:8px 14px; font-size:12px; border:none; color:white; background:var(--accent);"  onclick="openApproveModal(<?php echo $row['id']; ?>)">Approve</button>
-                                                    <button type="button" class="btn" style="padding:8px 14px; font-size:12px; border:none; color:white; background:#c43c3c;" onclick="openRejectModal(<?php echo $row['id']; ?>)">Reject</button>
-                                                <?php endif; ?>
-                                            </div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><?php echo htmlspecialchars($row["created_at"], ENT_QUOTES, "UTF-8"); ?></td>
-                                    <td>
-                                        <?php if ($row["is_archived"]): ?>
-                                            <form method="POST" style="display:inline;">
-                                                <?php foreach ($_GET as $k => $v): ?>
-                                                    <input type="hidden" name="<?php echo htmlspecialchars($k, ENT_QUOTES); ?>" value="<?php echo htmlspecialchars($v, ENT_QUOTES); ?>">
-                                                <?php endforeach; ?>
-                                                <input type="hidden" name="absence_id"   value="<?php echo $row['id']; ?>">
-                                                <input type="hidden" name="new_archived" value="0">
-                                                <input type="hidden" name="toggle_archive" value="1">
-                                                <button type="submit" name="toggle_archive" class="btn btn-recover" title="Restore to active view">
-                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
-                                                    Recover
-                                                </button>
-                                            </form>
-                                        <?php else: ?>
-                                            <form method="POST" style="display:inline;" id="archiveForm-<?php echo $row['id']; ?>">
-                                                <input type="hidden" name="absence_id"   value="<?php echo $row['id']; ?>">
-                                                <input type="hidden" name="new_archived" value="1">
-                                                <input type="hidden" name="toggle_archive" value="1">
-                                                <button type="button" name="toggle_archive" class="btn btn-archive" title="Archive this record"
-                                                    onclick="openArchiveModal(document.getElementById('archiveForm-<?php echo $row['id']; ?>'))">
-                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-                                                    Archive
-                                                </button>
-                                            </form>
-                                        <?php endif; ?>
+                                        <button type="button" class="btn btn-calendar" data-employee-name="<?php echo htmlspecialchars($row['employee_name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                            View Calendar
+                                        </button>
                                     </td>
                                 </tr>
                             <?php endwhile; ?>
@@ -525,19 +476,8 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
                     </tbody>
                 </table>
             </div>
-
-            <?php if ($total_pages > 1): ?>
-                <div class="pagination" style="margin-top:20px; display:flex; justify-content:center; gap:8px;">
-                    <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                        <a href="<?php echo htmlspecialchars($base_url . $i, ENT_QUOTES, 'UTF-8'); ?>"
-                            class="btn <?php echo ($i === $page) ? '' : 'btn-auth-outline'; ?>"
-                            style="padding:6px 12px; border-radius:4px; text-decoration:none;">
-                            <?php echo $i; ?>
-                        </a>
-                    <?php endfor; ?>
-                </div>
-            <?php endif; ?>
         </section>
+
     </main>
 
     <!-- ══ Archive Confirm Modal ══════════════════════════════════════════════════ -->
@@ -548,9 +488,9 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
                     <polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>
                 </svg>
             </div>
-            <h3 style="margin:0 0 8px; color:var(--navy);">Archive this record?</h3>
+            <h3 style="margin:0 0 8px; color:var(--navy);">Archive these records?</h3>
             <p style="font-size:14px; color:var(--text-muted, #666); margin:0 0 24px;">
-                This record will be moved to the Archived view. You can recover it at any time.
+                These records will be moved to the Archived view. You can recover them at any time.
             </p>
             <div style="display:flex; gap:12px; justify-content:center;">
                 <button type="button" class="btn btn-auth-outline" onclick="closeArchiveModal()"
@@ -654,57 +594,20 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
     <div id="addLeaveModal" class="modal-overlay">
         <div class="modal-box">
             <h3>Add Leave Manually</h3>
-            <p class="modal-sub">Submit a leave record on behalf of an employee. It will be set to Pending.</p>
-
-            <div class="toggle-mode-row">
-                <button type="button" class="toggle-mode-btn active" id="modeSelectBtn" onclick="setMode('select')">Select from Users</button>
-                <button type="button" class="toggle-mode-btn"        id="modeManualBtn" onclick="setMode('manual')">Enter Manually</button>
-            </div>
+            <p class="modal-sub">Submit a leave record directly. It will be recorded as active.</p>
 
             <form method="POST" id="addLeaveForm" novalidate>
                 <input type="hidden" name="add_leave_manual" value="1">
-                <input type="hidden" name="manual_user_id"   id="manual_user_id" value="">
 
-                <div id="selectMode">
-                    <div class="form-group">
-                        <label for="user_select">Employee</label>
-                        <select id="user_select" name="user_select_id">
-                            <option value="">— Select an employee —</option>
-                            <?php foreach ($all_users as $u): ?>
-                                <option value="<?php echo $u['id']; ?>"
-                                    data-email="<?php echo htmlspecialchars($u['email'], ENT_QUOTES, 'UTF-8'); ?>"
-                                    data-name="<?php echo htmlspecialchars(trim($u['first_name'] . ' ' . $u['middle_name'] . ' ' . $u['last_name']), ENT_QUOTES, 'UTF-8'); ?>">
-                                    <?php echo htmlspecialchars(trim($u['first_name'] . ' ' . $u['middle_name'] . ' ' . $u['last_name']), ENT_QUOTES, 'UTF-8'); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Gmail (auto-filled)</label>
-                        <input type="text" id="select_email_display" disabled placeholder="Will fill automatically" style="background:#f5f7ff; color:#888;">
-                    </div>
-                </div>
-
-                <div id="manualMode" style="display:none;">
-                    <div class="form-group">
-                        <label for="manual_first_name">First Name</label>
-                        <input type="text" id="manual_first_name" name="manual_first_name" maxlength="100" placeholder="e.g. Juan">
-                        <div class="char-count" id="firstNameCount">0 / 100</div>
-                    </div>
-                    <div class="form-group">
-                        <label for="manual_middle_name">Middle Name</label>
-                        <input type="text" id="manual_middle_name" name="manual_middle_name" maxlength="100" placeholder="e.g. Dela">
-                        <div class="char-count" id="middleNameCount">0 / 100</div>
-                    </div>
-                    <div class="form-group">
-                        <label for="manual_last_name">Last Name</label>
-                        <input type="text" id="manual_last_name" name="manual_last_name" maxlength="100" placeholder="e.g. Cruz">
-                        <div class="char-count" id="lastNameCount">0 / 100</div>
-                    </div>
-                    <div class="form-group">
-                        <label for="manual_email_input">Gmail</label>
-                        <input type="email" id="manual_email_input" name="manual_email" placeholder="e.g. juan@gmail.com">
-                    </div>
+                <div class="form-group">
+                    <label for="manual_employee_name">Employee Name</label>
+                    <input type="text" id="manual_employee_name" name="manual_employee_name" 
+                        list="employees-list" placeholder="e.g. Juan Dela Cruz" required>
+                    <datalist id="employees-list">
+                        <?php foreach ($all_employees as $emp): ?>
+                            <option value="<?php echo htmlspecialchars($emp, ENT_QUOTES, 'UTF-8'); ?>">
+                        <?php endforeach; ?>
+                    </datalist>
                 </div>
 
                 <div class="form-group">
@@ -724,12 +627,6 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label for="manual_reason">Reason</label>
-                    <textarea id="manual_reason" name="manual_reason" rows="3" maxlength="100" placeholder="Brief reason for the leave..." required></textarea>
-                    <div class="char-count" id="reasonCount">0 / 100</div>
-                </div>
-
                 <div id="addLeaveError" style="display:none; color:#c43c3c; font-size:13px; margin-bottom:12px; padding:10px 12px; background:#fff0f0; border-radius:8px; border-left:3px solid #c43c3c;"></div>
 
                 <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:8px;">
@@ -740,40 +637,60 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
         </div>
     </div>
 
-    <!-- ══ Reject Modal ═══════════════════════════════════════════════════════════ -->
-    <div id="rejectModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;">
-        <div class="card" style="width:400px; max-width:90%; animation:rise 0.3s ease-out;">
-            <h3 style="margin-bottom:16px; color:var(--navy);">Reject Leave Request</h3>
-            <form method="POST">
-                <input type="hidden" name="absence_id" id="reject_absence_id">
-                <input type="hidden" name="status"     value="Rejected">
-                <div class="form-group" style="margin-bottom:20px;">
-                    <label style="font-size:14px;">Reason for Rejection</label>
-                    <textarea name="admin_remarks" rows="3" required style="width:100%; padding:12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:#fff; color:#333;"></textarea>
+    <!-- ══ Delete Leave Confirm Modal ═══════════════════════════════════════════ -->
+    <div id="deleteLeavesModal" class="modal-overlay">
+        <div class="modal-box" style="max-width:420px;">
+            <h3>Delete leave record?</h3>
+            <p class="modal-sub" id="deleteLeavesSub">Enter your password to confirm deletion.</p>
+            <form method="POST" id="deleteLeavesForm">
+                <input type="hidden" name="delete_leave" value="1">
+                <input type="hidden" name="leave_id" id="deleteLeaveId">
+                <div class="form-group">
+                    <label for="delete_confirm_password">Admin Password</label>
+                    <div class="input-with-button">
+                        <input type="password" id="delete_confirm_password" name="confirm_password" required>
+                        <button type="button" class="btn btn-auth-outline toggle-password" data-target="delete_confirm_password" aria-label="Toggle password visibility">
+                            <svg class="eye-open eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.522 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            <svg class="eye-closed eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="display:none;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <div style="display:flex; gap:12px; justify-content:flex-end;">
-                    <button type="button" class="btn btn-auth-outline" onclick="closeRejectModal()" style="border:1px solid #ccc;">Cancel</button>
-                    <button type="submit" name="update_status" class="btn" style="background:#c43c3c; box-shadow:0 4px 12px rgba(196,60,60,0.2);">Confirm Reject</button>
+                    <button type="button" class="btn btn-auth-outline" onclick="closeDeleteLeavesModal()" style="border:1px solid #ccc;">Cancel</button>
+                    <button type="submit" class="btn" style="background:#c43c3c; box-shadow:0 4px 12px rgba(196,60,60,0.2);">Confirm Delete</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- ══ Approve Modal ══════════════════════════════════════════════════════════ -->
-    <div id="approveModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;">
-        <div class="card" style="width:400px; max-width:90%; animation:rise 0.3s ease-out;">
-            <h3 style="margin-bottom:16px; color:var(--navy);">Approve Leave Request</h3>
-            <form method="POST">
-                <input type="hidden" name="absence_id" id="approve_absence_id">
-                <input type="hidden" name="status"     value="Approved">
-                <div class="form-group" style="margin-bottom:20px;">
-                    <p style="font-size:14px; color:var(--text);">Are you sure you want to approve this leave request? This will mark it as officially recorded.</p>
+    <!-- ══ Calendar Modal ═══════════════════════════════════════════════════════ -->
+    <div id="calendarModal" class="modal-overlay">
+        <div class="modal-box" style="max-width:1100px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
+                <div>
+                    <h3 style="margin:0 0 4px;">Employee Leave Calendar</h3>
+                    <p class="modal-sub" id="calendarSubtitle">Select an employee to view monthly absences for <?php echo $calendar_year; ?>.</p>
                 </div>
-                <div style="display:flex; gap:12px; justify-content:flex-end;">
-                    <button type="button" class="btn btn-auth-outline" onclick="closeApproveModal()" style="border:1px solid #ccc;">Cancel</button>
-                    <button type="submit" name="update_status" class="btn" style="background:var(--accent); box-shadow:0 4px 12px var(--accent-glow);">Confirm Approve</button>
-                </div>
+                <button type="button" class="btn btn-auth-outline" onclick="closeCalendarModal()" style="border:1px solid #ccc;">Close</button>
+            </div>
+            <div class="calendar-header" style="margin-bottom:10px;">
+                <div class="calendar-legend" id="calendarLegend"></div>
+            </div>
+            <form method="POST" id="archiveLeaveForm" style="display:none;">
+                <input type="hidden" name="toggle_archive_leave" value="1">
+                <input type="hidden" name="leave_id" id="archiveLeaveId">
+                <input type="hidden" name="new_archived" id="archiveLeaveValue">
             </form>
+            <div class="calendar-content">
+                <div class="calendar-title" id="calendarTitle">Select an employee</div>
+                <div class="calendar-grid" id="calendarGrid"></div>
+                <div class="leave-list" id="leaveList"></div>
+            </div>
         </div>
     </div>
 
@@ -796,6 +713,14 @@ $reopen_lt_modal = isset($_GET['open_lt']) && $_GET['open_lt'] === '1';
         </div>
     </div>
 
+    <script>
+        window.calendarData = <?php echo json_encode([
+            'year' => $calendar_year,
+            'employees' => $all_employees,
+            'entries' => $calendar_entries,
+            'types' => array_values(array_map(fn($lt) => $lt['name'], $leave_types))
+        ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;
+    </script>
     <script src="../js/admin.js"></script>
 </body>
 </html>
