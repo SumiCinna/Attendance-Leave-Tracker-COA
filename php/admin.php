@@ -374,6 +374,7 @@ $export_query = http_build_query($export_params);
             </div>
         </div>
         <nav class="nav-links">
+            <a href="dashboard.php" class="btn btn-outline">Dashboard</a>
             <a href="profile.php"   class="btn btn-outline">Profile</a>
             <a href="#" class="btn btn-outline" id="logoutBtn">Logout</a>
         </nav>
@@ -529,7 +530,7 @@ $export_query = http_build_query($export_params);
                                                 <input type="hidden" name="toggle_archive_leave" value="1">
                                                 <input type="hidden" name="leave_id" value="<?php echo (int)$row['id']; ?>">
                                                 <input type="hidden" name="new_archived" value="0">
-                                                <button type="submit" class="btn btn-outline" style="padding:6px 12px;">Restore</button>
+                                                <button type="submit" class="btn btn-outline" style="padding:6px 12px; text-color: black;">Restore</button>
                                             </form>
                                         </td>
                                     <?php else: ?>
