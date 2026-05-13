@@ -84,12 +84,35 @@ function confirmArchive() {
     closeArchiveModal();
 }
 
+// ── Restore Confirm Modal ────────────────────────────────────────────────────
+let _pendingRestoreForm = null;
+
+function openRestoreModal(formEl) {
+    _pendingRestoreForm = formEl;
+    const restoreModal = getEl("restoreConfirmModal");
+    if (restoreModal) restoreModal.style.display = "flex";
+}
+
+function closeRestoreModal() {
+    _pendingRestoreForm = null;
+    const restoreModal = getEl("restoreConfirmModal");
+    if (restoreModal) restoreModal.style.display = "none";
+}
+
+function confirmRestore() {
+    if (_pendingRestoreForm) _pendingRestoreForm.submit();
+    closeRestoreModal();
+}
+
 window.setEmployeeMode    = setEmployeeMode;
 window.submitAddLeave     = submitAddLeave;
 window.closeAddLeaveModal = closeAddLeaveModal;
 window.openArchiveModal   = openArchiveModal;
 window.closeArchiveModal  = closeArchiveModal;
 window.confirmArchive     = confirmArchive;
+window.openRestoreModal   = openRestoreModal;
+window.closeRestoreModal  = closeRestoreModal;
+window.confirmRestore     = confirmRestore;
 window.closeDeleteLeavesModal = () => {
     const deleteLeavesModal = getEl("deleteLeavesModal");
     if (deleteLeavesModal) deleteLeavesModal.classList.remove("open");
@@ -165,7 +188,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     // ── Auto-dismiss toasts ──────────────────────────────────────────────────
-    ["addLeaveToast", "ltToast", "deleteToast"].forEach(id => {
+    ["addLeaveToast", "ltToast", "deleteToast", "archiveToast"].forEach(id => {
         const el = getEl(id);
         if (el) setTimeout(() => {
             el.style.transition = "opacity 0.5s";
@@ -248,6 +271,14 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // ── Restore Confirm Modal backdrop click ─────────────────────────────────
+    const restoreConfirmModal = getEl("restoreConfirmModal");
+    if (restoreConfirmModal) {
+        restoreConfirmModal.addEventListener("click", e => {
+            if (e.target === restoreConfirmModal) closeRestoreModal();
+        });
+    }
+
     // ── Logout Modal ─────────────────────────────────────────────────────────
     const logoutModal  = getEl("logoutModal");
     const logoutBtn    = getEl("logoutBtn");
@@ -276,6 +307,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (logoutModal && logoutModal.style.display === "flex") logoutModal.style.display = "none";
             closeAddLeaveModal();
             closeArchiveModal();
+            closeRestoreModal();
             closeDeleteLeavesModal();
             if (typeof closeCalendarModal === "function") closeCalendarModal();
             if (ltModal && ltModal.style.display === "flex")             window.closeLtModal();
@@ -414,7 +446,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     if (!archiveLeaveForm) return;
                     if (archiveLeaveId) archiveLeaveId.value = entry.id;
                     if (archiveLeaveValue) archiveLeaveValue.value = String(nextArchived);
-                    archiveLeaveForm.submit();
+                    if (nextArchived === 1) {
+                        openArchiveModal(archiveLeaveForm);
+                    } else {
+                        openRestoreModal(archiveLeaveForm);
+                    }
                 });
 
                 const deleteBtn = document.createElement("button");

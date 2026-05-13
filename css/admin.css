@@ -62,6 +62,7 @@
     font-weight: 600;
     color: var(--navy);
     margin-bottom: 6px;
+    text-align: left;
 }
 
 .modal-box input,
@@ -344,6 +345,32 @@
     background: #fafafa;
 }
 
+/* ── Admin Outline Buttons ────────────────────────────────────────────────── */
+.container .btn-outline,
+.modal-box .btn-outline {
+    background: #ffffff;
+    color: var(--navy);
+    border: 1.5px solid var(--border);
+    box-shadow: none;
+}
+
+.container .btn-outline:hover,
+.modal-box .btn-outline:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e0;
+    color: var(--navy);
+    box-shadow: none;
+}
+
+.container .btn-outline:disabled,
+.modal-box .btn-outline:disabled {
+    background: #f8fafc;
+    color: var(--text-muted);
+    border-color: var(--border);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
 /* ── Archive / Recover Buttons ─────────────────────────────────────────────── */
 .btn-archive {
     display: inline-flex;
@@ -558,7 +585,7 @@
     gap: 10px;
     margin-top: 12px;
     font-size: 12px;
-    color: var(--text-muted);
+    color: black;
 }
 
 .leave-list-item {

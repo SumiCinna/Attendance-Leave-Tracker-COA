@@ -77,10 +77,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_archive_leave"
 
     $stmt = $mysqli->prepare("UPDATE leave_data SET is_archived = ? WHERE id = ?");
     $stmt->bind_param("ii", $new_archived, $leave_id);
-    $stmt->execute();
+    $archive_status = "success";
+    $archive_msg = $new_archived ? "Leave record archived." : "Leave record restored.";
+    if (!$stmt->execute()) {
+        $archive_status = "error";
+        $archive_msg = "Unable to update leave record.";
+    }
     $stmt->close();
 
     $redirect_qs = $_GET;
+    $redirect_qs["archive_status"] = $archive_status;
+    $redirect_qs["archive_msg"] = $archive_msg;
     header("Location: admin.php?" . http_build_query($redirect_qs));
     exit;
 }
@@ -399,6 +406,12 @@ $export_query = http_build_query($export_params);
             </div>
         <?php endif; ?>
 
+        <?php if (isset($_GET["archive_status"])): ?>
+            <div class="toast toast-<?php echo htmlspecialchars($_GET["archive_status"], ENT_QUOTES, "UTF-8"); ?>" id="archiveToast">
+                <?php echo htmlspecialchars($_GET["archive_msg"] ?? "", ENT_QUOTES, "UTF-8"); ?>
+            </div>
+        <?php endif; ?>
+
         <!-- Search / Filter -->
         <section class="card" style="margin-bottom: 24px;">
             <form method="GET" action="admin.php" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
@@ -530,7 +543,7 @@ $export_query = http_build_query($export_params);
                                                 <input type="hidden" name="toggle_archive_leave" value="1">
                                                 <input type="hidden" name="leave_id" value="<?php echo (int)$row['id']; ?>">
                                                 <input type="hidden" name="new_archived" value="0">
-                                                <button type="submit" class="btn btn-outline" style="padding:6px 12px; text-color: black;">Restore</button>
+                                                <button type="button" class="btn btn-outline" style="padding:6px 12px;" onclick="openRestoreModal(this.closest('form'))">Restore</button>
                                             </form>
                                         </td>
                                     <?php else: ?>
@@ -555,7 +568,7 @@ $export_query = http_build_query($export_params);
     </main>
 
     <!-- ══ Archive Confirm Modal ══════════════════════════════════════════════════ -->
-    <div id="archiveConfirmModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); align-items:center; justify-content:center; z-index:1000;">
+    <div id="archiveConfirmModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); align-items:center; justify-content:center; z-index:2300;">
         <div class="card" style="width:400px; max-width:90%; animation:rise 0.3s ease-out; text-align:center;">
             <div style="width:52px; height:52px; border-radius:50%; background:#fff3e0; display:flex; align-items:center; justify-content:center; margin:0 auto 14px;">
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#e67e22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -571,6 +584,27 @@ $export_query = http_build_query($export_params);
                     style="min-width:110px; border:1px solid var(--border, #ccc);">Cancel</button>
                 <button type="button" class="btn" onclick="confirmArchive()"
                     style="min-width:110px; background:#e67e22; box-shadow:0 4px 12px rgba(230,126,34,0.25);">Yes, Archive</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ Restore Confirm Modal ═════════════════════════════════════════════════= -->
+    <div id="restoreConfirmModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); align-items:center; justify-content:center; z-index:2300;">
+        <div class="card" style="width:400px; max-width:90%; animation:rise 0.3s ease-out; text-align:center;">
+            <div style="width:52px; height:52px; border-radius:50%; background:#ecfdf5; display:flex; align-items:center; justify-content:center; margin:0 auto 14px;">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </div>
+            <h3 style="margin:0 0 8px; color:var(--navy);">Restore this record?</h3>
+            <p style="font-size:14px; color:var(--text-muted, #666); margin:0 0 24px;">
+                This record will be moved back to the Active view.
+            </p>
+            <div style="display:flex; gap:12px; justify-content:center;">
+                <button type="button" class="btn btn-auth-outline" onclick="closeRestoreModal()"
+                    style="min-width:110px; border:1px solid var(--border, #ccc);">Cancel</button>
+                <button type="button" class="btn" onclick="confirmRestore()"
+                    style="min-width:110px; background:#16a34a; box-shadow:0 4px 12px rgba(22,163,74,0.25);">Yes, Restore</button>
             </div>
         </div>
     </div>
@@ -666,7 +700,7 @@ $export_query = http_build_query($export_params);
 
     <!-- ══ Add Leave Modal ════════════════════════════════════════════════════════ -->
     <div id="addLeaveModal" class="modal-overlay">
-        <div class="modal-box">
+         <div class="modal-box" style="max-width:650px; min-height:400px;">
             <h3>Add Leave Manually</h3>
             <p class="modal-sub">Submit a leave record directly. It will be recorded as active.</p>
 
@@ -675,12 +709,12 @@ $export_query = http_build_query($export_params);
 
                 <div class="form-group" style="margin-bottom:6px;">
                     <label style="font-weight:600;">Employee Source</label>
-                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                        <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px;">
+                    <div style="display:flex; gap:20px; flex-wrap:wrap;">
+                        <label style="display:inline-flex; align-items:center; gap:8px; font-size:13px;">
                             <input type="radio" name="employee_mode" value="existing" id="employeeModeExisting" checked>
                             Select existing
                         </label>
-                        <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px;">
+                        <label style="display:inline-flex; align-items:center; gap:8px; font-size:13px;">
                             <input type="radio" name="employee_mode" value="new" id="employeeModeNew">
                             Add new employee
                         </label>
