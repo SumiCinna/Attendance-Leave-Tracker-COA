@@ -743,9 +743,14 @@ $active_tab = $_GET['tab'] ?? 'pending';
 
         /* ── Auto-dismiss toasts ──────────────────────────────────────────── */
         document.querySelectorAll('.toast').forEach(t => {
+            // Fade then remove toast so page reflows back to original layout
             setTimeout(() => {
                 t.style.transition = 'opacity 0.5s';
                 t.style.opacity    = '0';
+                // Remove element after transition completes
+                setTimeout(() => {
+                    if (t && t.parentNode) t.parentNode.removeChild(t);
+                }, 500);
             }, 3500);
         });
     </script>
