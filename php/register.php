@@ -7,7 +7,6 @@ $values = [
     "middle_name"    => "",
     "last_name"      => "",
     "email"          => "",
-    "contact_number" => "",
 ];
 
 function clean_input($value)
@@ -20,7 +19,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $values["middle_name"]    = clean_input($_POST["middle_name"]    ?? "");
     $values["last_name"]      = clean_input($_POST["last_name"]      ?? "");
     $values["email"]          = clean_input($_POST["email"]          ?? "");
-    $values["contact_number"] = clean_input($_POST["contact_number"] ?? "");
     $password                 = $_POST["password"] ?? "";
 
     $namePattern = "/^[a-zA-Z\s\-']+$/";
@@ -43,12 +41,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $errors[] = "Email must be a Gmail address ending with @gmail.com.";
     }
 
-    // Contact number: must be exactly 10 digits (we store with +63 prefix)
-    if ($values["contact_number"] === "") {
-        $errors[] = "Contact number is required.";
-    } elseif (!preg_match("/^\d{10}$/", $values["contact_number"])) {
-        $errors[] = "Contact number must be exactly 10 digits after +63.";
-    }
 
     if ($password === "") {
         $errors[] = "Password is required.";
@@ -73,21 +65,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $hash           = password_hash($password, PASSWORD_DEFAULT);
         $role           = 'employee';
         $account_status = 'pending';
-        $contact_stored = '+63' . $values["contact_number"]; // store full number
-
         $stmt = $mysqli->prepare(
-            "INSERT INTO users (first_name, middle_name, last_name, email, password_hash, role, contact_number, account_status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO users (first_name, middle_name, last_name, email, password_hash, role, account_status)
+             VALUES (?, ?, ?, ?, ?, ?, ?)"
         );
         $stmt->bind_param(
-            "ssssssss",
+            "sssssss",
             $values["first_name"],
             $values["middle_name"],
             $values["last_name"],
             $values["email"],
             $hash,
             $role,
-            $contact_stored,
             $account_status
         );
         if ($stmt->execute()) {
@@ -171,17 +160,7 @@ function e($value)
                     </div>
 
                     <!-- Contact Number -->
-                    <div class="form-group" style="margin-bottom:12px;">
-                        <label for="contact_number">Contact Number</label>
-                        <div class="input-prefix-wrap">
-                            <span class="input-prefix">+63</span>
-                            <input type="text" id="contact_number" name="contact_number"
-                                   maxlength="10" inputmode="numeric" pattern="\d{10}"
-                                   placeholder="9XXXXXXXXX" required
-                                   value="<?php echo e($values['contact_number']); ?>">
-                        </div>
-                        <div class="hint">10 digits after +63 (e.g. 9171234567)</div>
-                    </div>
+                    <!-- Contact number removed -->
 
                     <div class="form-group">
                         <label for="password">Password</label>
@@ -220,11 +199,5 @@ function e($value)
     </main>
 
     <script src="../js/register.js"></script>
-    <script>
-        // Allow digits only in contact field
-        document.getElementById('contact_number').addEventListener('input', function () {
-            this.value = this.value.replace(/\D/g, '').slice(0, 10);
-        });
-    </script>
 </body>
 </html>

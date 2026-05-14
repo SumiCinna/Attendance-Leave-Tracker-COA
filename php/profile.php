@@ -10,7 +10,7 @@ $successes = [];
 
 // ── Fetch current user ────────────────────────────────────────────────────────
 $stmt = $mysqli->prepare(
-    "SELECT first_name, middle_name, last_name, email, contact_number, role
+    "SELECT first_name, middle_name, last_name, email, role
      FROM users WHERE id = ? LIMIT 1"
 );
 $stmt->bind_param("i", $userId);
@@ -29,23 +29,7 @@ $otpPlain     = null;   // passed to JS only when freshly generated
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $action = $_POST["action"] ?? "";
 
-    // ── 1. Update contact number ──────────────────────────────────────────────
-    if ($action === "update_contact") {
-        $raw = clean($_POST["contact_number"] ?? "");
-        if ($raw === "") {
-            $errors[] = "Contact number is required.";
-        } elseif (!preg_match("/^\d{10}$/", $raw)) {
-            $errors[] = "Contact number must be exactly 10 digits after +63.";
-        } else {
-            $stored = '+63' . $raw;
-            $stmt   = $mysqli->prepare("UPDATE users SET contact_number = ? WHERE id = ?");
-            $stmt->bind_param("si", $stored, $userId);
-            $stmt->execute();
-            $stmt->close();
-            $user["contact_number"] = $stored;
-            $successes[] = "Contact number updated successfully.";
-        }
-    }
+    // Contact number removed from profile management
 
     // ── 2. Change password ────────────────────────────────────────────────────
     if ($action === "change_password") {
@@ -204,8 +188,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 }
 
-// Strip +63 for display
-$contactDigits = preg_replace('/^\+63/', '', $user["contact_number"] ?? "");
 $fullName = e($user["first_name"]) . ' ' . e($user["middle_name"]) . ' ' . e($user["last_name"]);
 ?>
 <!DOCTYPE html>
@@ -526,25 +508,7 @@ $fullName = e($user["first_name"]) . ' ' . e($user["middle_name"]) . ' ' . e($us
                 <?php endif; ?>
             </section>
 
-            <!-- ── Card 2: Contact Number ──────────────────────────────────── -->
-            <section class="card">
-                <p class="section-label">Contact Number</p>
-                <form method="POST" class="form" novalidate>
-                    <input type="hidden" name="action" value="update_contact">
-                    <div class="form-group">
-                        <label for="contact_number">Mobile Number</label>
-                        <div class="input-prefix-wrap">
-                            <span class="input-prefix">+63</span>
-                            <input type="text" id="contact_number" name="contact_number"
-                                   maxlength="10" inputmode="numeric" pattern="\d{10}"
-                                   placeholder="9XXXXXXXXX"
-                                   value="<?php echo e($contactDigits); ?>" required>
-                        </div>
-                        <div class="hint">10 digits after +63</div>
-                    </div>
-                    <button type="submit" class="btn">Update Number</button>
-                </form>
-            </section>
+            <!-- Contact number section removed -->
 
             <!-- ── Card 3: Change Password ─────────────────────────────────── -->
             <section class="card">
@@ -740,10 +704,7 @@ $fullName = e($user["first_name"]) . ' ' . e($user["middle_name"]) . ' ' . e($us
         openOtpModal(OTP_PLAIN); // OTP_PLAIN is null on re-render after wrong code
     }
 
-    // ── Digits-only contact input ────────────────────────────────────────
-    document.getElementById('contact_number').addEventListener('input', function () {
-        this.value = this.value.replace(/\D/g, '').slice(0, 10);
-    });
+    // Contact input removed
 
     // ── Password strength hints ───────────────────────────────────────────
     const newPass    = document.getElementById('new_password');
