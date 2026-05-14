@@ -122,11 +122,12 @@ CREATE TABLE `users` (
   `middle_name` varchar(100) NOT NULL,
   `last_name` varchar(100) NOT NULL,
   `email` varchar(150) NOT NULL,
-  `contact_number` varchar(15) DEFAULT NULL,
   `password_hash` varchar(255) NOT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `role` varchar(20) NOT NULL DEFAULT 'employee',
   `account_status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `is_registered_account` tinyint(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -138,7 +139,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'Blaine Jenner','A','BIlalat','bjabilalat@coa.gov.ph',NULL,'$2y$10$uelPDzDrmGgHD.pPSda6S.tgkdM2Bl33kOFuw9M.UEYFHM07MWQie','2026-05-08 13:03:10','admin','approved'),(4,'Blaine Jenner','A.','Bilalat','blainejennerabilalat@gmail.com',NULL,'$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved'),(5,'Diony','F.','Guillen','dionyfguillen@gmail.com',NULL,'$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved'),(6,'Esmeralda','T.','Acebedo','esmeraldatacebedo@gmail.com',NULL,'$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved'),(7,'LA Angelo','R.','Luciano','laangelorluciano@gmail.com',NULL,'$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved'),(8,'Gabriel','N.','Felias','gabrielnfelias@gmail.com',NULL,'$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved'),(9,'Eris','D.','Magpantay','erisdmagpantay@gmail.com',NULL,'$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved'),(10,'Kristian','D.','Jocson','kristiandjocson@gmail.com',NULL,'$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved'),(11,'Cesar Rey','','Templonuevo','cesarreytemplonuevo@gmail.com',NULL,'$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved'),(12,'Kathleen Gail','C.','Maderaje','kathleengailcmaderaj@gmail.com',NULL,'$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved'),(13,'John Noel','Del Agua','Orano','johnnoelorano@gmail.com','+639923139504','$2y$10$jNb1uMZMHsEBgBYthXc.reP75qdHFe8XDRLFz4yCvcfZCLG6hM7vC','2026-05-14 00:48:36','employee','approved');
+INSERT INTO `users` VALUES (1,'Blaine Jenner','A','BIlalat','bjabilalat@coa.gov.ph','$2y$10$uelPDzDrmGgHD.pPSda6S.tgkdM2Bl33kOFuw9M.UEYFHM07MWQie','2026-05-08 13:03:10','admin','approved',1,0),(4,'Blaine Jenner','A.','Bilalat','blainejennerabilalat@gmail.com','$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved',1,0),(5,'Diony','F.','Guillen','dionyfguillen@gmail.com','$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved',1,0),(6,'Esmeralda','T.','Acebedo','esmeraldatacebedo@gmail.com','$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved',1,0),(7,'LA Angelo','R.','Luciano','laangelorluciano@gmail.com','$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved',1,0),(8,'Gabriel','N.','Felias','gabrielnfelias@gmail.com','$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved',1,0),(9,'Eris','D.','Magpantay','erisdmagpantay@gmail.com','$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved',1,0),(10,'Kristian','D.','Jocson','kristiandjocson@gmail.com','$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved',1,0),(11,'Cesar Rey','','Templonuevo','cesarreytemplonuevo@gmail.com','$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved',1,0),(12,'Kathleen Gail','C.','Maderaje','kathleengailcmaderaj@gmail.com','$2y$10$placeholderHashChangeMe1234567890123456789012345678901','2026-05-12 14:46:37','employee','approved',1,0),(13,'John Noel','Del Agua','Orano','johnnoelorano@gmail.com','$2y$10$jNb1uMZMHsEBgBYthXc.reP75qdHFe8XDRLFz4yCvcfZCLG6hM7vC','2026-05-14 00:48:36','employee','approved',1,1);
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -159,4 +160,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-05-14 10:26:40
+-- Dump completed on 2026-05-14 15:57:08
