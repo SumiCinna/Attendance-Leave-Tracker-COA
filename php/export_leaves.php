@@ -1,7 +1,10 @@
 <?php
 require_once __DIR__ . "/db.php";
 require_once __DIR__ . "/auth.php";
-require_admin();
+require_login();
+
+$is_admin = is_admin();
+$owner_user_id = $_SESSION["user_id"] ?? null;
 
 $view_archived = isset($_GET['archived']) && $_GET['archived'] === '1' ? 1 : 0;
 $selected_year = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
@@ -14,6 +17,11 @@ while ($lt = $lt_result->fetch_assoc()) { $leave_types[] = $lt['name']; }
 $employee_query = "SELECT DISTINCT employee_name FROM leave_data WHERE is_archived = ? AND YEAR(leave_date) = ?";
 $employee_types = "ii";
 $employee_params = [$view_archived, $selected_year];
+if (!$is_admin) {
+    $employee_query .= " AND owner_user_id = ?";
+    $employee_types .= "i";
+    $employee_params[] = $owner_user_id;
+}
 if ($selected_month > 0 && $selected_month <= 12) {
     $employee_query .= " AND MONTH(leave_date) = ?";
     $employee_types .= "i";
@@ -32,6 +40,11 @@ $employee_stmt->close();
 $leave_query = "SELECT employee_name, leave_date, leave_type FROM leave_data WHERE is_archived = ? AND YEAR(leave_date) = ?";
 $leave_types_sig = "ii";
 $leave_params = [$view_archived, $selected_year];
+if (!$is_admin) {
+    $leave_query .= " AND owner_user_id = ?";
+    $leave_types_sig .= "i";
+    $leave_params[] = $owner_user_id;
+}
 if ($selected_month > 0 && $selected_month <= 12) {
     $leave_query .= " AND MONTH(leave_date) = ?";
     $leave_types_sig .= "i";

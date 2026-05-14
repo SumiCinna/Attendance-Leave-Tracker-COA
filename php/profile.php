@@ -368,6 +368,8 @@ $fullName = e($user["first_name"]) . ' ' . e($user["middle_name"]) . ' ' . e($us
         <nav class="nav-links">
             <?php if ($isAdmin): ?>
                 <a href="admin.php" class="btn">Admin View</a>
+            <?php else: ?>
+                <a href="manage_employee.php" class="btn">Manage Employees</a>
             <?php endif; ?>
             <a href="#" class="btn btn-outline" id="logoutBtn">Logout</a>
         </nav>
@@ -590,7 +592,7 @@ $fullName = e($user["first_name"]) . ' ' . e($user["middle_name"]) . ' ' . e($us
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <script>
     // ════════════════════════════════════════════════════════════════════════
-    // EmailJS config — replace these with your actual credentials
+    // EmailJS config 
     // ════════════════════════════════════════════════════════════════════════
     const EMAILJS_PUBLIC_KEY  = "caPpuVrkPsXy7ffiv";        // from EmailJS account
     const EMAILJS_SERVICE_ID  = "service_ecq5q27";        // e.g. "service_xxxxxxx"

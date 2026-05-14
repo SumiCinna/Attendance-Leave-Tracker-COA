@@ -12,7 +12,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if ($email === "" || $password === "") {
         $error = "Email and password are required.";
     } else {
-    $stmt = $mysqli->prepare("SELECT id, first_name, last_name, password_hash, role FROM users WHERE email = ? LIMIT 1");
+    $stmt = $mysqli->prepare("SELECT id, first_name, last_name, password_hash, role, account_status FROM users WHERE email = ? LIMIT 1");
         $stmt->bind_param("s", $email);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -20,17 +20,25 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $stmt->close();
 
         if ($user && password_verify($password, $user["password_hash"])) {
-            $_SESSION["user_id"] = $user["id"];
-            $_SESSION["user_name"] = $user["first_name"] . " " . $user["last_name"];
-            $_SESSION["user_role"] = $user["role"] ?? 'employee';
-            if ($_SESSION["user_role"] === 'admin') {
-                header("Location: admin.php");
+            $status = $user["account_status"] ?? "approved";
+            if ($status !== "approved") {
+                $error = $status === "rejected"
+                    ? "Your account registration was declined. Please contact the admin."
+                    : "Your account is pending admin approval. Please wait for confirmation.";
             } else {
-                header("Location: dashboard.php");
+                $_SESSION["user_id"] = $user["id"];
+                $_SESSION["user_name"] = $user["first_name"] . " " . $user["last_name"];
+                $_SESSION["user_role"] = $user["role"] ?? 'employee';
+                if ($_SESSION["user_role"] === 'admin') {
+                    header("Location: admin.php");
+                } else {
+                    header("Location: manage_employee.php");
+                }
+                exit;
             }
-            exit;
+        } else {
+            $error = "Invalid login credentials.";
         }
-        $error = "Invalid login credentials.";
     }
 }
 
@@ -61,7 +69,7 @@ $registered = isset($_GET["registered"]);
                 <p class="subtitle">Log in to your COA account</p>
 
                 <?php if ($registered): ?>
-                    <div class="alert alert-success">Registration complete. You can now log in.</div>
+                    <div class="alert alert-success">Registration submitted. Please wait for admin approval before logging in.</div>
                 <?php endif; ?>
                 <?php if ($error): ?>
                     <div class="alert alert-error"><?php echo htmlspecialchars($error, ENT_QUOTES, "UTF-8"); ?></div>

@@ -20,7 +20,7 @@ function require_admin()
 {
     require_login();
     if (!is_admin()) {
-        header("Location: dashboard.php");
+        header("Location: manage_employee.php");
         exit;
     }
 }

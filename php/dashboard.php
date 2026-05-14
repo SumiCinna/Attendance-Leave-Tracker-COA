@@ -1,30 +1,50 @@
 <?php
 require_once __DIR__ . "/db.php";
 require_once __DIR__ . "/auth.php";
-require_admin();
+require_login();
+
+$is_admin = is_admin();
+$owner_user_id = (int)($_SESSION["user_id"] ?? 0);
+$dashboard_title = $is_admin ? "Dashboard" : "My Team Dashboard";
+$dashboard_subtitle = $is_admin
+    ? "Interactive insights for employee absences."
+    : "Interactive insights for your managed employees.";
+$back_link = $is_admin ? "admin.php" : "manage_employee.php";
+$back_label = $is_admin ? "Admin View" : "Manage Employees";
 
 $selected_year = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
 
-$kpi_stmt = $mysqli->prepare(
-    "SELECT COUNT(*) as total_leaves,
-            SUM(is_archived = 1) as archived_leaves,
-            COUNT(DISTINCT employee_name) as employee_count
-     FROM leave_data
-     WHERE YEAR(leave_date) = ?"
-);
-$kpi_stmt->bind_param("i", $selected_year);
+$kpi_query = "SELECT COUNT(*) as total_leaves,
+                     SUM(is_archived = 1) as archived_leaves,
+                     COUNT(DISTINCT employee_name) as employee_count
+              FROM leave_data
+              WHERE YEAR(leave_date) = ?";
+if (!$is_admin) {
+    $kpi_query .= " AND owner_user_id = ?";
+}
+$kpi_stmt = $mysqli->prepare($kpi_query);
+if ($is_admin) {
+    $kpi_stmt->bind_param("i", $selected_year);
+} else {
+    $kpi_stmt->bind_param("ii", $selected_year, $owner_user_id);
+}
 $kpi_stmt->execute();
 $kpi = $kpi_stmt->get_result()->fetch_assoc() ?: [];
 $kpi_stmt->close();
 
-$monthly_stmt = $mysqli->prepare(
-    "SELECT MONTH(leave_date) as month_num, COUNT(*) as leave_count
-     FROM leave_data
-     WHERE YEAR(leave_date) = ?
-     GROUP BY MONTH(leave_date)
-     ORDER BY MONTH(leave_date)"
-);
-$monthly_stmt->bind_param("i", $selected_year);
+$monthly_query = "SELECT MONTH(leave_date) as month_num, COUNT(*) as leave_count
+                  FROM leave_data
+                  WHERE YEAR(leave_date) = ?";
+if (!$is_admin) {
+    $monthly_query .= " AND owner_user_id = ?";
+}
+$monthly_query .= " GROUP BY MONTH(leave_date) ORDER BY MONTH(leave_date)";
+$monthly_stmt = $mysqli->prepare($monthly_query);
+if ($is_admin) {
+    $monthly_stmt->bind_param("i", $selected_year);
+} else {
+    $monthly_stmt->bind_param("ii", $selected_year, $owner_user_id);
+}
 $monthly_stmt->execute();
 $monthly_result = $monthly_stmt->get_result();
 $monthly_data = array_fill(1, 12, 0);
@@ -34,14 +54,19 @@ while ($row = $monthly_result->fetch_assoc()) {
 }
 $monthly_stmt->close();
 
-$type_stmt = $mysqli->prepare(
-    "SELECT leave_type, COUNT(*) as leave_count
-     FROM leave_data
-     WHERE YEAR(leave_date) = ?
-     GROUP BY leave_type
-     ORDER BY leave_count DESC"
-);
-$type_stmt->bind_param("i", $selected_year);
+$type_query = "SELECT leave_type, COUNT(*) as leave_count
+               FROM leave_data
+               WHERE YEAR(leave_date) = ?";
+if (!$is_admin) {
+    $type_query .= " AND owner_user_id = ?";
+}
+$type_query .= " GROUP BY leave_type ORDER BY leave_count DESC";
+$type_stmt = $mysqli->prepare($type_query);
+if ($is_admin) {
+    $type_stmt->bind_param("i", $selected_year);
+} else {
+    $type_stmt->bind_param("ii", $selected_year, $owner_user_id);
+}
 $type_stmt->execute();
 $type_result = $type_stmt->get_result();
 $type_labels = [];
@@ -52,15 +77,19 @@ while ($row = $type_result->fetch_assoc()) {
 }
 $type_stmt->close();
 
-$top_stmt = $mysqli->prepare(
-    "SELECT employee_name, COUNT(*) as leave_count
-     FROM leave_data
-     WHERE YEAR(leave_date) = ?
-     GROUP BY employee_name
-     ORDER BY leave_count DESC, employee_name ASC
-     LIMIT 30"
-);
-$top_stmt->bind_param("i", $selected_year);
+$top_query = "SELECT employee_name, COUNT(*) as leave_count
+              FROM leave_data
+              WHERE YEAR(leave_date) = ?";
+if (!$is_admin) {
+    $top_query .= " AND owner_user_id = ?";
+}
+$top_query .= " GROUP BY employee_name ORDER BY leave_count DESC, employee_name ASC LIMIT 30";
+$top_stmt = $mysqli->prepare($top_query);
+if ($is_admin) {
+    $top_stmt->bind_param("i", $selected_year);
+} else {
+    $top_stmt->bind_param("ii", $selected_year, $owner_user_id);
+}
 $top_stmt->execute();
 $top_result = $top_stmt->get_result();
 $top_employees = [];
@@ -69,13 +98,19 @@ while ($row = $top_result->fetch_assoc()) {
 }
 $top_stmt->close();
 
-$recent_stmt = $mysqli->prepare(
-    "SELECT employee_name, leave_date, leave_type, is_archived
-     FROM leave_data
-     WHERE YEAR(leave_date) = ?
-     ORDER BY leave_date DESC, id DESC"
-);
-$recent_stmt->bind_param("i", $selected_year);
+$recent_query = "SELECT employee_name, leave_date, leave_type, is_archived
+                 FROM leave_data
+                 WHERE YEAR(leave_date) = ?";
+if (!$is_admin) {
+    $recent_query .= " AND owner_user_id = ?";
+}
+$recent_query .= " ORDER BY leave_date DESC, id DESC";
+$recent_stmt = $mysqli->prepare($recent_query);
+if ($is_admin) {
+    $recent_stmt->bind_param("i", $selected_year);
+} else {
+    $recent_stmt->bind_param("ii", $selected_year, $owner_user_id);
+}
 $recent_stmt->execute();
 $recent_result = $recent_stmt->get_result();
 $recent_records = [];
@@ -84,14 +119,19 @@ while ($row = $recent_result->fetch_assoc()) {
 }
 $recent_stmt->close();
 
-$emp_monthly_stmt = $mysqli->prepare(
-    "SELECT MONTH(leave_date) as month_num, COUNT(DISTINCT employee_name) as emp_count
-     FROM leave_data
-     WHERE YEAR(leave_date) = ?
-     GROUP BY MONTH(leave_date)
-     ORDER BY MONTH(leave_date)"
-);
-$emp_monthly_stmt->bind_param("i", $selected_year);
+$emp_monthly_query = "SELECT MONTH(leave_date) as month_num, COUNT(DISTINCT employee_name) as emp_count
+                      FROM leave_data
+                      WHERE YEAR(leave_date) = ?";
+if (!$is_admin) {
+    $emp_monthly_query .= " AND owner_user_id = ?";
+}
+$emp_monthly_query .= " GROUP BY MONTH(leave_date) ORDER BY MONTH(leave_date)";
+$emp_monthly_stmt = $mysqli->prepare($emp_monthly_query);
+if ($is_admin) {
+    $emp_monthly_stmt->bind_param("i", $selected_year);
+} else {
+    $emp_monthly_stmt->bind_param("ii", $selected_year, $owner_user_id);
+}
 $emp_monthly_stmt->execute();
 $emp_monthly_result = $emp_monthly_stmt->get_result();
 $emp_monthly_data = array_fill(1, 12, 0);
@@ -116,7 +156,7 @@ $active_count = max(0, (int)($kpi['total_leaves'] ?? 0) - $archive_count);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard | Attendance Leave Tracker</title>
+    <title><?php echo htmlspecialchars($dashboard_title, ENT_QUOTES, "UTF-8"); ?> | Attendance Leave Tracker</title>
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="../css/admin.css">
     <style>
@@ -245,12 +285,12 @@ $active_count = max(0, (int)($kpi['total_leaves'] ?? 0) - $archive_count);
         <div class="brand">
             <img src="../includes/images.png" alt="COA Logo" class="logo">
             <div>
-                <h1>Dashboard</h1>
-                <p class="muted">Interactive insights for employee absences.</p>
+                <h1><?php echo htmlspecialchars($dashboard_title, ENT_QUOTES, "UTF-8"); ?></h1>
+                <p class="muted"><?php echo htmlspecialchars($dashboard_subtitle, ENT_QUOTES, "UTF-8"); ?></p>
             </div>
         </div>
         <nav class="nav-links">
-            <a href="admin.php" class="btn btn-outline">Admin View</a>
+            <a href="<?php echo $back_link; ?>" class="btn btn-outline"><?php echo $back_label; ?></a>
             <a href="profile.php" class="btn btn-outline">Profile</a>
             <a href="#" class="btn btn-outline" id="logoutBtn">Logout</a>
         </nav>

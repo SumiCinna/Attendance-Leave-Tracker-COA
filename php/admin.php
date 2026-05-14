@@ -1,7 +1,19 @@
 <?php
 require_once __DIR__ . "/db.php";
 require_once __DIR__ . "/auth.php";
-require_admin();
+$is_manage_employee = defined('MANAGE_EMPLOYEE') && MANAGE_EMPLOYEE;
+if ($is_manage_employee) {
+    require_login();
+    if (is_admin()) {
+        header("Location: admin.php");
+        exit;
+    }
+} else {
+    require_admin();
+}
+
+$self_page = $is_manage_employee ? "manage_employee.php" : "admin.php";
+$owner_user_id = $_SESSION['user_id'] ?? null;
 
 // ── Add Leave Type ─────────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_leave_type"])) {
@@ -25,7 +37,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_leave_type"])) {
         $stmt->close();
     }
 
-    header("Location: admin.php?lt_status=" . $lt_status . "&lt_msg=" . urlencode($lt_msg) . "&open_lt=1");
+    header("Location: " . $self_page . "?lt_status=" . $lt_status . "&lt_msg=" . urlencode($lt_msg) . "&open_lt=1");
     exit;
 }
 
@@ -42,7 +54,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_leave_type"]))
     $stmt->execute();
     $stmt->close();
 
-    header("Location: admin.php?lt_status=success&lt_msg=" . urlencode($lt_active ? "Leave type re-enabled." : "Leave type disabled.") . "&open_lt=1");
+    header("Location: " . $self_page . "?lt_status=success&lt_msg=" . urlencode($lt_active ? "Leave type re-enabled." : "Leave type disabled.") . "&open_lt=1");
     exit;
 }
 
@@ -57,7 +69,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["delete_leave_type"]))
     $check->close();
 
     if ($in_use > 0) {
-        header("Location: admin.php?lt_status=error&lt_msg=" . urlencode("Cannot delete: this type is used by existing records. Disable it instead.") . "&open_lt=1");
+        header("Location: " . $self_page . "?lt_status=error&lt_msg=" . urlencode("Cannot delete: this type is used by existing records. Disable it instead.") . "&open_lt=1");
         exit;
     }
 
@@ -66,7 +78,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["delete_leave_type"]))
     $stmt->execute();
     $stmt->close();
 
-    header("Location: admin.php?lt_status=success&lt_msg=" . urlencode("Leave type deleted.") . "&open_lt=1");
+    header("Location: " . $self_page . "?lt_status=success&lt_msg=" . urlencode("Leave type deleted.") . "&open_lt=1");
     exit;
 }
 
@@ -75,8 +87,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_archive_leave"
     $leave_id    = (int)$_POST["leave_id"];
     $new_archived = (int)($_POST["new_archived"] ?? 0);
 
-    $stmt = $mysqli->prepare("UPDATE leave_data SET is_archived = ? WHERE id = ?");
-    $stmt->bind_param("ii", $new_archived, $leave_id);
+    if ($is_manage_employee) {
+        $stmt = $mysqli->prepare("UPDATE leave_data SET is_archived = ? WHERE id = ? AND owner_user_id = ?");
+$stmt->bind_param("iii", $new_archived, $leave_id, $owner_user_id);
+    } else {
+        $stmt = $mysqli->prepare("UPDATE leave_data SET is_archived = ? WHERE id = ?");
+        $stmt->bind_param("ii", $new_archived, $leave_id);
+    }
     $archive_status = "success";
     $archive_msg = $new_archived ? "Leave record archived." : "Leave record restored.";
     if (!$stmt->execute()) {
@@ -88,7 +105,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["toggle_archive_leave"
     $redirect_qs = $_GET;
     $redirect_qs["archive_status"] = $archive_status;
     $redirect_qs["archive_msg"] = $archive_msg;
-    header("Location: admin.php?" . http_build_query($redirect_qs));
+    header("Location: " . $self_page . "?" . http_build_query($redirect_qs));
     exit;
 }
 
@@ -107,15 +124,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["delete_leave"])) {
     $admin_stmt->close();
 
     if ($admin_row && password_verify($password_input, $admin_row['password_hash'])) {
-        $del_stmt = $mysqli->prepare("DELETE FROM leave_data WHERE id = ?");
-        $del_stmt->bind_param("i", $leave_id);
+        if ($is_manage_employee) {
+      $del_stmt = $mysqli->prepare("DELETE FROM leave_data WHERE id = ? AND owner_user_id = ?");
+$del_stmt->bind_param("ii", $leave_id, $owner_user_id);
+        } else {
+            $del_stmt = $mysqli->prepare("DELETE FROM leave_data WHERE id = ?");
+            $del_stmt->bind_param("i", $leave_id);
+        }
         $del_stmt->execute();
         $del_stmt->close();
         $msg_status = "success";
         $msg_text   = "Leave record deleted.";
     }
 
-    header("Location: admin.php?delete_status=" . $msg_status . "&delete_msg=" . urlencode($msg_text));
+    header("Location: " . $self_page . "?delete_status=" . $msg_status . "&delete_msg=" . urlencode($msg_text));
     exit;
 }
 
@@ -151,8 +173,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_leave_manual"])) 
 
     if ($add_status === "success") {
         // Check for duplicate
-        $dup_stmt = $mysqli->prepare("SELECT 1 FROM leave_data WHERE employee_name = ? AND leave_date = ? LIMIT 1");
-        $dup_stmt->bind_param("ss", $employee_name, $leave_date);
+        if ($is_manage_employee) {
+            $dup_stmt = $mysqli->prepare("SELECT 1 FROM leave_data WHERE employee_name = ? AND leave_date = ? AND owner_user_id = ? LIMIT 1");
+            $dup_stmt->bind_param("ssi", $employee_name, $leave_date, $owner_user_id);
+        } else {
+            $dup_stmt = $mysqli->prepare("SELECT 1 FROM leave_data WHERE employee_name = ? AND leave_date = ? LIMIT 1");
+            $dup_stmt->bind_param("ss", $employee_name, $leave_date);
+        }
         $dup_stmt->execute();
         $dup_stmt->store_result();
         $exists = $dup_stmt->num_rows > 0;
@@ -162,8 +189,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_leave_manual"])) 
             $add_status = "error";
             $add_msg    = "A leave entry already exists on that date for this employee.";
         } else {
-            $stmt = $mysqli->prepare("INSERT INTO leave_data (employee_name, leave_date, leave_type, created_at) VALUES (?, ?, ?, NOW())");
-            $stmt->bind_param("sss", $employee_name, $leave_date, $leave_type);
+            $stmt = $mysqli->prepare("INSERT INTO leave_data (owner_user_id, employee_name, leave_date, leave_type, created_at) VALUES (?, ?, ?, ?, NOW())");
+            $stmt->bind_param("isss", $owner_user_id, $employee_name, $leave_date, $leave_type);
             $stmt->execute();
             if ($stmt->affected_rows <= 0) {
                 $add_status = "error";
@@ -173,7 +200,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_leave_manual"])) 
         }
     }
 
-    header("Location: admin.php?add_status=" . $add_status . "&add_msg=" . urlencode($add_msg));
+    header("Location: " . $self_page . "?add_status=" . $add_status . "&add_msg=" . urlencode($add_msg));
     exit;
 }
 
@@ -185,12 +212,17 @@ $filter_type      = trim($_GET["filter_type"] ?? "");
 
 $where_clauses = [
     "leave_data.is_archived = ?",
-    "YEAR(leave_data.leave_date) = ?"
+    "YEAR(leave_data.leave_date) = ?",
+    "leave_data.owner_user_id = ?"          // ← always filter by owner
 ];
+$params  = [$view_archived, $selected_year, $owner_user_id];
+$types   = "iii";
 
-
-$params        = [$view_archived, $selected_year];
-$types         = "ii";
+if ($is_manage_employee) {
+    $where_clauses[] = "leave_data.owner_user_id = ?";
+    $params[] = $owner_user_id;
+    $types   .= "i";
+}
 
 if ($search_name !== "") {
     $where_clauses[] = "leave_data.employee_name LIKE ?";
@@ -230,14 +262,27 @@ $summary_stmt->execute();
 $summary_records = $summary_stmt->get_result();
 $summary_stmt->close();
 
-$archived_count = $mysqli->query("SELECT COUNT(*) as c FROM leave_data WHERE is_archived = 1")->fetch_assoc()['c'] ?? 0;
+$archived_count = 0;
+if ($is_manage_employee) {
+   $arch_stmt = $mysqli->prepare("SELECT COUNT(*) as c FROM leave_data WHERE is_archived = 1 AND owner_user_id = ?");
+$arch_stmt->bind_param("i", $owner_user_id);
+$arch_stmt->execute();
+$archived_count = $arch_stmt->get_result()->fetch_assoc()['c'] ?? 0;
+$arch_stmt->close();
+} else {
+    $archived_count = $mysqli->query("SELECT COUNT(*) as c FROM leave_data WHERE is_archived = 1")->fetch_assoc()['c'] ?? 0;
+}
 
 // Get unique employee names
-$employees_result = $mysqli->query("SELECT DISTINCT employee_name FROM leave_data ORDER BY employee_name ASC");
+$employees_stmt = $mysqli->prepare("SELECT DISTINCT employee_name FROM leave_data WHERE owner_user_id = ? ORDER BY employee_name ASC");
+$employees_stmt->bind_param("i", $owner_user_id);
+$employees_stmt->execute();
+$employees_result = $employees_stmt->get_result();
 $all_employees = [];
 while ($e = $employees_result->fetch_assoc()) {
     $all_employees[] = $e['employee_name'];
 }
+$employees_stmt->close();
 
 $lt_result   = $mysqli->query("SELECT id, name, is_active FROM leave_types ORDER BY name ASC");
 $leave_types = [];
@@ -252,9 +297,9 @@ $calendar_month = ($selected_month > 0 && $selected_month <= 12) ? $selected_mon
 // Get calendar entries
 $calendar_query = "SELECT id, employee_name, leave_date, leave_type, is_archived
     FROM leave_data
-    WHERE is_archived = ? AND YEAR(leave_date) = ?";
-$calendar_types = "ii";
-$calendar_params = [$view_archived, $calendar_year];
+    WHERE is_archived = ? AND YEAR(leave_date) = ? AND owner_user_id = ?";
+$calendar_types = "iii";
+$calendar_params = [$view_archived, $calendar_year, $owner_user_id];
 if ($calendar_month) {
     $calendar_query .= " AND MONTH(leave_date) = ?";
     $calendar_types .= "i";
@@ -293,13 +338,24 @@ if ($view_archived) {
     $export_params['archived'] = '1';
 }
 $export_query = http_build_query($export_params);
+
+$page_title = $is_manage_employee ? "Manage Employees" : "Admin";
+$page_heading = $view_archived ? 'Archived Leaves' : ($is_manage_employee ? 'Employee Leave Overview' : 'Admin Leave Overview');
+$page_subtitle = $view_archived ? 'Archived leave and absence records.' : 'All employee leave and absence records.';
+$pending_account_count = 0;
+if (!$is_manage_employee) {
+    $pending_count_stmt = $mysqli->prepare("SELECT COUNT(*) as c FROM users WHERE account_status = 'pending' AND role <> 'admin'");
+    $pending_count_stmt->execute();
+    $pending_account_count = (int)($pending_count_stmt->get_result()->fetch_assoc()['c'] ?? 0);
+    $pending_count_stmt->close();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin | Attendance Leave Tracker</title>
+    <title><?php echo $page_title; ?> | Attendance Leave Tracker</title>
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="../css/admin.css">
     <style>
@@ -376,11 +432,14 @@ $export_query = http_build_query($export_params);
         <div class="brand">
             <img src="../includes/images.png" alt="COA Logo" class="logo">
             <div>
-                <h1><?php echo $view_archived ? 'Archived Leaves' : 'Admin Leave Overview'; ?></h1>
-                <p class="muted"><?php echo $view_archived ? 'Archived leave and absence records.' : 'All employee leave and absence records.'; ?></p>
+                <h1><?php echo $page_heading; ?></h1>
+                <p class="muted"><?php echo $page_subtitle; ?></p>
             </div>
         </div>
         <nav class="nav-links">
+            <?php if (!$is_manage_employee): ?>
+                <a href="account_registrations.php" class="btn btn-outline">Account Requests</a>
+            <?php endif; ?>
             <a href="dashboard.php" class="btn btn-outline">Dashboard</a>
             <a href="profile.php"   class="btn btn-outline">Profile</a>
             <a href="#" class="btn btn-outline" id="logoutBtn">Logout</a>
@@ -412,9 +471,23 @@ $export_query = http_build_query($export_params);
             </div>
         <?php endif; ?>
 
+        <?php if (!$is_manage_employee): ?>
+            <section class="card" style="margin-bottom: 24px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                    <div>
+                        <h3 style="margin:0;">Manage Accounts</h3>
+                        <p class="muted" style="margin:4px 0 0;">
+                            Pending registration requests: <strong><?php echo $pending_account_count; ?></strong>
+                        </p>
+                    </div>
+                    <a href="account_registrations.php" class="btn">Open Account Requests</a>
+                </div>
+            </section>
+        <?php endif; ?>
+
         <!-- Search / Filter -->
         <section class="card" style="margin-bottom: 24px;">
-            <form method="GET" action="admin.php" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+            <form method="GET" action="<?php echo $self_page; ?>" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
                 <?php if ($view_archived): ?>
                     <input type="hidden" name="archived" value="1">
                 <?php endif; ?>
@@ -468,7 +541,7 @@ $export_query = http_build_query($export_params);
                 </div>
                 <div class="form-group">
                     <button type="submit" class="btn" style="padding:11px 22px;">Search Filters</button>
-                    <a href="admin.php<?php echo $view_archived ? '?archived=1' : ''; ?>"
+                    <a href="<?php echo $self_page; ?><?php echo $view_archived ? '?archived=1' : ''; ?>"
                         class="btn btn-auth-outline" style="padding:11px 22px; text-decoration:none;">Clear</a>
                 </div>
             </form>
@@ -774,7 +847,7 @@ $export_query = http_build_query($export_params);
                 <input type="hidden" name="delete_leave" value="1">
                 <input type="hidden" name="leave_id" id="deleteLeaveId">
                 <div class="form-group">
-                    <label for="delete_confirm_password">Admin Password</label>
+                    <label for="delete_confirm_password"><?php echo $is_manage_employee ? 'Password' : 'Admin Password'; ?></label>
                     <div class="input-with-button">
                         <input type="password" id="delete_confirm_password" name="confirm_password" required>
                         <button type="button" class="btn btn-auth-outline toggle-password" data-target="delete_confirm_password" aria-label="Toggle password visibility">

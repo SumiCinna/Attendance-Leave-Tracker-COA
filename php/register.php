@@ -72,21 +72,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (!$errors) {
         $hash           = password_hash($password, PASSWORD_DEFAULT);
         $role           = 'employee';
+        $account_status = 'pending';
         $contact_stored = '+63' . $values["contact_number"]; // store full number
 
         $stmt = $mysqli->prepare(
-            "INSERT INTO users (first_name, middle_name, last_name, email, password_hash, role, contact_number)
-             VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO users (first_name, middle_name, last_name, email, password_hash, role, contact_number, account_status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $stmt->bind_param(
-            "sssssss",
+            "ssssssss",
             $values["first_name"],
             $values["middle_name"],
             $values["last_name"],
             $values["email"],
             $hash,
             $role,
-            $contact_stored
+            $contact_stored,
+            $account_status
         );
         if ($stmt->execute()) {
             header("Location: login.php?registered=1");
